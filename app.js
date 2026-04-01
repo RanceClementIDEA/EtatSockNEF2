@@ -1,0 +1,1002 @@
+/* ============================================================
+   BLOC 1/10 — Variables globales + Utils
+   VERSION NETTOYÉE & STABLE
+============================================================ */
+
+const ALLEES = ["A","B","C","D","E","F","G","H","I","J","K","L","M","N"];
+
+let raw = [];
+let dataset = [];
+let filtered = [];
+let GESTIONNAIRES = [];
+
+let currentPage = 0;
+const PAGE_SIZE = 60;
+
+// Canvas principal + mini-map
+let canvas, ctx;
+let minimap, minimapCtx;
+let tooltip;
+
+// Navigation plan
+let zoom = 1;
+let offsetX = 0;
+let offsetY = 0;
+let dragging = false;
+let dragStartX = 0;
+let dragStartY = 0;
+
+/* ------------------------------------------------------------
+   Utils
+------------------------------------------------------------ */
+function normalize(str){
+    if (typeof str !== "string") str = String(str || "");
+    return str
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g,"")
+        .replace(/[^a-z0-9]/g,"");
+}
+/* ============================================================
+   BLOC 2/10 — Import XLSX
+============================================================ */
+
+document.getElementById("fileInput").addEventListener("change", async (e) => {
+
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+        const buffer = await file.arrayBuffer();
+        const workbook = XLSX.read(buffer, { type: "array" });
+
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+
+        raw = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+        buildDataset();
+    }
+    catch (err) {
+        console.error("Erreur import Excel :", err);
+        alert("Impossible de lire ce fichier Excel.");
+    }
+});
+/* ============================================================
+   BLOC 3/10 — NIV + Construction du Dataset
+============================================================ */
+
+/* Configuration des niveaux par allée / travée */
+const NIV = {
+    "A":{1:"J",2:"J",3:"I",4:"I",5:"I",6:"I",7:"I",8:"I",9:"I",10:"H",11:"H",12:"H",13:"H",14:"H",15:"H",16:"H"},
+    "B":{1:"J",2:"J",3:"J",4:"J",5:"J",6:"J",7:"J",8:"J",9:"J",10:"I",11:"I",12:"J",13:"J",14:"J",15:"J",16:"J"},
+    "C":{1:"J",2:"J",3:"J",4:"J",5:"J",6:"J",7:"J",8:"J",9:"J",10:"I",11:"I",12:"J",13:"J",14:"J",15:"J",16:"J"},
+    "D":{1:"J",2:"J",3:"J",4:"J",5:"J",6:"J",7:"J",8:"J",9:"J",10:"J",11:"J",12:"J",13:"J",14:"J",15:"J",16:"J"},
+    "E":{1:"J",2:"J",3:"J",4:"J",5:"J",6:"J",7:"J",8:"J",9:"J",10:"J",11:"J",12:"J",13:"J",14:"J",15:"J",16:"J"},
+    "F":{1:"J",2:"J",3:"H",4:"H",5:"H",6:"H",7:"H",8:"H",9:"H",10:"I",11:"I",12:"J",13:"J",14:"J",15:"J",16:"J"},
+    "G":{1:"J",2:"J",3:"H",4:"H",5:"H",6:"H",7:"H",8:"H",9:"H",10:"I",11:"I",12:"J",13:"J",14:"J",15:"J",16:"J"},
+    "H":{1:"J",2:"J",3:"J",4:"J",5:"J",6:"J",7:"J",8:"J",9:"J",10:"J",11:"J",12:"J",13:"J",14:"J",15:"J",16:"J"},
+    "I":{1:"J",2:"J",3:"J",4:"J",5:"J",6:"J",7:"J",8:"J",9:"J",10:"J",11:"J",12:"J",13:"J",14:"J",15:"J",16:"J"},
+    "J":{1:"G",2:"G",3:"F",4:"F",5:"F",6:"F",7:"F",8:"F",9:"F",10:"G",11:"G",12:"G",13:"G",14:"G",15:"G",16:"G"},
+    "K":{1:"G",2:"G",3:"F",4:"F",5:"F",6:"F",7:"F",8:"F",9:"F",10:"G",11:"G",12:"G",13:"G",14:"G",15:"G",16:"G"},
+    "L":{1:"J",2:"J",3:"I",4:"I",5:"I",6:"I",7:"I",8:"I",9:"I",10:"I",11:"I",12:"I",13:"I",14:"I",15:"I",16:"I"},
+    "M":{1:"J",2:"J",3:"I",4:"I",5:"I",6:"I",7:"I",8:"I",9:"I",10:"H",11:"H",12:"H",13:"H",14:"H",15:"H",16:"H"},
+    "N":{1:"J",2:"J",3:"J",4:"J",5:"J",6:"J",7:"J",8:"J",9:"J",10:"I",11:"I",12:"I",13:"H",14:"H",15:"H",16:"H"}
+};
+
+/* Ordre logique des niveaux */
+const LEVEL_ORDER = ["A","B","C","D","E","F","G","H","I","J"];
+
+function getLevelsUpTo(maxLevel){
+    return LEVEL_ORDER.slice(0, LEVEL_ORDER.indexOf(maxLevel) + 1);
+}
+
+/* Construction du dataset principal */
+function buildDataset(){
+
+    const map = {};
+
+    // Gestionnaires uniques
+    GESTIONNAIRES = [
+        ...new Set(
+            raw.map(r => (r["Gest."] || "").trim()).filter(Boolean)
+        )
+    ].sort();
+
+    // Emplacements occupés (depuis Excel)
+    raw.forEach(row => {
+
+        const A   = (row["Allée"] || "").trim().toUpperCase();
+        const T   = parseInt(row["Travée"]);
+        const N   = (row["Niveau"] || "").trim().toUpperCase();
+        const POS = parseInt(row["Numéro"]);
+
+        if (!A || !T || !N || !POS) return;
+
+        const key = `${A}-${T}-${N}-${POS}`;
+        if (!map[key]) map[key] = { A, T, N, POS, articles: [] };
+
+        let q = row["Stock disponible"];
+        if (typeof q === "string") {
+            q = q.replace(",", ".").replace(/[^0-9.-]/g, "");
+        }
+        q = parseFloat(q);
+        if (isNaN(q)) q = 0;
+
+        map[key].articles.push({
+            article: row["Article"] || "",
+            lib:     row["Libellé"] || "",
+            gest:    (row["Gest."] || "").trim(),
+            qty:     q
+        });
+    });
+
+    // Emplacements vides générés depuis NIV
+    Object.keys(NIV).forEach(A => {
+        Object.keys(NIV[A]).forEach(strT => {
+
+            const T = parseInt(strT);
+            const levels = getLevelsUpTo(NIV[A][T]);
+
+            [1,2,3,4].forEach(POS => {
+                levels.forEach(N => {
+                    const key = `${A}-${T}-${N}-${POS}`;
+                    if (!map[key]) {
+                        map[key] = { A, T, N, POS, articles: [] };
+                    }
+                });
+            });
+        });
+    });
+
+    // Dataset final enrichi
+    dataset = Object.values(map).map(e => {
+
+        const qty = e.articles.reduce((s,a) => s + a.qty, 0);
+
+        const status =
+            qty === 0 ? "vide" :
+            qty <= 5  ? "faible" :
+            qty <= 20 ? "moyen" :
+                        "plein";
+
+        return {
+            id: `${e.A}${String(e.T).padStart(2,"0")}${e.N}${e.POS}`,
+            ...e,
+            qty,
+            status
+        };
+    });
+
+    populateGestSelect();
+    refresh();
+}
+/* ============================================================
+   BLOC 4/10 — Sélecteur Gestionnaire + Filtres
+============================================================ */
+
+/* -----------------------------
+   Sélecteur Gestionnaire
+----------------------------- */
+function populateGestSelect() {
+
+    const sel = document.getElementById("filterGest");
+    if (!sel) return;
+
+    sel.innerHTML = `<option value="">Gest</option>`;
+
+    GESTIONNAIRES.forEach(g => {
+        const opt = document.createElement("option");
+        opt.value = g;
+        opt.textContent = g;
+        sel.appendChild(opt);
+    });
+}
+
+/* -----------------------------
+   Références DOM filtres
+   (déclarées AVANT usage)
+----------------------------- */
+const filterText   = document.getElementById("filterText");
+const filterA      = document.getElementById("filterA");
+const filterT      = document.getElementById("filterT");
+const filterN      = document.getElementById("filterN");
+const filterPos    = document.getElementById("filterPos");
+const filterStatus = document.getElementById("filterStatus");
+const filterGest   = document.getElementById("filterGest");
+
+/* -----------------------------
+   Application des filtres
+----------------------------- */
+function applyFilters() {
+
+    if (!filterText || !filterA || !filterStatus) return;
+
+    const txt = normalize(filterText.value || "");
+    const FA  = filterA.value.trim().toUpperCase();
+    const FT  = filterT.value.trim();
+    const FN  = filterN.value.trim().toUpperCase();
+    const FP  = filterPos.value.trim();
+    const FS  = filterStatus.value.trim();
+    const FG  = filterGest.value.trim().toUpperCase();
+
+    filtered = dataset.filter(e => {
+
+        if (FA && e.A !== FA) return false;
+        if (FT && e.T !== parseInt(FT)) return false;
+        if (FN && e.N !== FN) return false;
+        if (FP && e.POS !== parseInt(FP)) return false;
+        if (FS && e.status !== FS) return false;
+
+        if (FG && !e.articles.some(a =>
+            (a.gest || "").toUpperCase() === FG
+        )) return false;
+
+        if (txt !== "") {
+            const matchID   = normalize(e.id).includes(txt);
+            const matchArt  = e.articles.some(a => normalize(a.article).includes(txt));
+            const matchLib  = e.articles.some(a => normalize(a.lib).includes(txt));
+            const matchGest = e.articles.some(a => normalize(a.gest).includes(txt));
+
+            if (!matchID && !matchArt && !matchLib && !matchGest)
+                return false;
+        }
+
+        return true;
+    });
+
+    currentPage = 0;
+}
+
+/* -----------------------------
+   Listeners filtres
+----------------------------- */
+filterText.addEventListener("input", refresh);
+filterA.addEventListener("input", refresh);
+filterT.addEventListener("input", refresh);
+filterN.addEventListener("input", refresh);
+filterPos.addEventListener("input", refresh);
+filterStatus.addEventListener("change", refresh);
+filterGest.addEventListener("change", refresh);
+/* ============================================================
+   BLOC 5/10 — Stats latérales + Histogramme + KPI
+============================================================ */
+
+/* -----------------------------
+   Indicateurs latéraux
+----------------------------- */
+function updateIndicators() {
+
+    if (!dataset.length) return;
+
+    const totalPossible = dataset.length;
+    const totalFiltered = filtered.length;
+    const totalQty      = filtered.reduce((s,e)=>s+e.qty,0);
+
+    const filtersActive =
+        filterText.value || filterA.value || filterT.value ||
+        filterN.value || filterPos.value || filterStatus.value || filterGest.value;
+
+    if (!filtersActive) {
+
+        const occupied = dataset.filter(e => e.qty > 0).length;
+        const taux = ((occupied / totalPossible) * 100).toFixed(1);
+
+        sideFillRate.textContent = taux + "%";
+        sideCount.textContent    = totalPossible;
+        sideQty.textContent      = dataset.reduce((s,e)=>s+e.qty,0);
+
+        drawStatusChart();
+        return;
+    }
+
+    sideFillRate.textContent = ((totalFiltered / totalPossible) * 100).toFixed(1) + "%";
+    sideCount.textContent    = totalFiltered;
+    sideQty.textContent      = totalQty;
+
+    drawStatusChart();
+}
+
+/* -----------------------------
+   Histogramme des statuts
+----------------------------- */
+function drawStatusChart() {
+
+    const canvas = document.getElementById("statusChart");
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+
+    canvas.width  = canvas.clientWidth;
+    canvas.height = 140;
+
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    const counts = {
+        plein:  filtered.filter(e=>e.status==="plein").length,
+        moyen:  filtered.filter(e=>e.status==="moyen").length,
+        faible: filtered.filter(e=>e.status==="faible").length,
+        vide:   filtered.filter(e=>e.status==="vide").length
+    };
+
+    const colors = {
+        plein:"#2e7d32",
+        moyen:"#f2c200",
+        faible:"#f57c00",
+        vide:"#d32f2f"
+    };
+
+    const labels = Object.keys(counts);
+    const max    = Math.max(...Object.values(counts), 1);
+
+    let x = 25;
+    const gap = 30, barWidth = 40;
+
+    labels.forEach(st => {
+
+        const val = counts[st];
+        const h   = (val / max) * 100;
+
+        ctx.fillStyle = colors[st];
+        ctx.fillRect(x, canvas.height - h - 25, barWidth, h);
+
+        ctx.fillStyle = "#333";
+        ctx.textAlign = "center";
+        ctx.font = "bold 13px 72-Regular, sans-serif";
+
+        ctx.fillText(val, x + barWidth/2, canvas.height - h - 32);
+        ctx.fillText(st, x + barWidth/2, canvas.height - 8);
+
+        x += barWidth + gap;
+    });
+}
+
+/* -----------------------------
+   KPI (Dashboard)
+----------------------------- */
+function computeKPI() {
+    return {
+        totalArticles: new Set(
+            dataset.flatMap(e => e.articles.map(a => a.article))
+        ).size,
+
+        totalQty: dataset.reduce((s,e)=>s+e.qty,0),
+
+        usedLocations: dataset.filter(e=>e.qty>0).length,
+
+        emptyLocations: dataset.filter(e=>e.qty===0).length,
+
+        totalLocations: dataset.length,   // ✅ NOMBRE TOTAL D’EMPLACEMENTS
+
+        totalGest: GESTIONNAIRES.length
+    };
+}
+
+function renderDashboardKPI() {
+
+    const box = document.getElementById("kpiDashboard");
+    if (!box) return;
+
+    const kpi = computeKPI();
+
+    box.innerHTML = `
+        <div class="kpi-card"><b>${kpi.totalArticles}</b><br>Articles distincts</div>
+        <div class="kpi-card"><b>${kpi.totalQty}</b><br>Quantité totale</div>
+<div class="kpi-card">
+    <b>${kpi.totalLocations}</b><br>
+    Emplacements totaux
+</div>
+        <div class="kpi-card"><b>${kpi.usedLocations}</b><br>Emplacements utilisés</div>
+        <div class="kpi-card"><b>${kpi.emptyLocations}</b><br>Emplacements vides</div>
+        <div class="kpi-card"><b>${kpi.totalGest}</b><br>Gestionnaires</div>
+    `;
+}
+/* ============================================================
+   BLOC 6/10 — Tableau + Pagination
+============================================================ */
+
+function renderTable() {
+
+    const tbody = document.getElementById("tableBody");
+    if (!tbody) return;
+
+    tbody.innerHTML = "";
+
+    const start = currentPage * PAGE_SIZE;
+    const end   = start + PAGE_SIZE;
+    const slice = filtered.slice(start, end);
+
+    slice.forEach(e => {
+
+        const articleHTML = `
+            <div class="article-list">
+                ${e.articles.map(a => `
+                    <div class="article-item">
+                        <strong>${a.article}</strong>
+                        <div>${a.lib}</div>
+                        <div>Gest : ${a.gest || "-"}</div>
+                        <div>Qté : ${a.qty}</div>
+                    </div>
+                `).join("")}
+            </div>
+        `;
+
+        const tr = document.createElement("tr");
+        tr.setAttribute("data-id", e.id);
+
+        tr.innerHTML = `
+            <td>${e.id}</td>
+            <td>${e.A}</td>
+            <td>${e.T}</td>
+            <td>${e.N}</td>
+            <td>${e.POS}</td>
+            <td>${articleHTML}</td>
+            <td>${e.qty}</td>
+            <td><span class="badge ${e.status}">${e.status}</span></td>
+        `;
+
+        tr.addEventListener("mouseenter", () => highlightInPlan(e));
+        tr.addEventListener("mouseleave", clearPlanHighlight);
+        tr.addEventListener("dblclick", () => centerOn(e));
+
+        tbody.appendChild(tr);
+    });
+
+    renderPagination();
+    updateIndicators();
+}
+
+/* -----------------------------
+   Pagination
+----------------------------- */
+function renderPagination(){
+
+    const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+    const pageInfo   = document.getElementById("pageInfo");
+    if (!pageInfo) return;
+
+    if (totalPages <= 1) {
+        pageInfo.textContent = "";
+        return;
+    }
+
+    pageInfo.textContent = `Page ${currentPage + 1} / ${totalPages}`;
+}
+
+document.getElementById("pagePrev").addEventListener("click", () => {
+    if (currentPage > 0) {
+        currentPage--;
+        renderTable();
+    }
+});
+
+document.getElementById("pageNext").addEventListener("click", () => {
+    const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+    if (currentPage < totalPages - 1) {
+        currentPage++;
+        renderTable();
+    }
+});
+/* ============================================================
+   BLOC 7/10 — Plan 2D multi‑niveaux
+============================================================ */
+
+function isLevelOccupied(A, T, N, POS){
+    const found = dataset.find(e =>
+        e.A === A && e.T === T && e.N === N && e.POS === POS
+    );
+    return found ? found.qty > 0 : false;
+}
+
+function drawPlan() {
+    if (!ctx) return;
+
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(zoom, zoom);
+
+    const TRAVE_WIDTH  = 120;
+    const POS_WIDTH    = TRAVE_WIDTH / 4;
+    const ALLEE_GAP    = 260;
+    const LEVEL_HEIGHT = 18;
+
+    /* Afficher uniquement les emplacements filtrés */
+    const visible = new Set(
+        filtered.map(e => `${e.A}-${e.T}-${e.N}-${e.POS}`)
+    );
+
+    ALLEES.forEach((A, idxA) => {
+
+        const row = ALLEES.length - idxA - 1;
+
+        for (let T = 1; T <= 16; T++) {
+
+            const maxLevel = NIV[A][T];
+            const levels = getLevelsUpTo(maxLevel);
+
+            levels.forEach((N, idxN) => {
+
+                const baseY =
+                    row * ALLEE_GAP +
+                    (levels.length - idxN - 1) * LEVEL_HEIGHT;
+
+                for (let POS = 1; POS <= 4; POS++) {
+
+                    const key = `${A}-${T}-${N}-${POS}`;
+                    if (!visible.has(key)) continue;
+
+                    const baseX =
+                        (T - 1) * TRAVE_WIDTH +
+                        (POS - 1) * POS_WIDTH;
+
+                    ctx.fillStyle = isLevelOccupied(A,T,N,POS)
+                        ? "#2ecc71"
+                        : "#e74c3c";
+
+                    ctx.fillRect(
+                        baseX,
+                        baseY,
+                        POS_WIDTH - 2,
+                        LEVEL_HEIGHT - 2
+                    );
+
+                    ctx.strokeStyle = "#22222222";
+                    ctx.strokeRect(
+                        baseX,
+                        baseY,
+                        POS_WIDTH - 2,
+                        LEVEL_HEIGHT - 2
+                    );
+                }
+            });
+        }
+    });
+
+    ctx.restore();
+}
+/* ============================================================
+   BLOC 8/10 — Tooltip + Highlight
+============================================================ */
+
+/* -----------------------------
+   Hover PLAN → Tooltip + Table
+----------------------------- */
+function detectHover(mx, my) {
+
+    if (!ctx) return;
+
+    const px = (mx - offsetX) / zoom;
+    const py = (my - offsetY) / zoom;
+
+    const TRAVE_WIDTH  = 120;
+    const POS_WIDTH    = TRAVE_WIDTH / 4;
+    const ALLEE_GAP    = 260;
+    const LEVEL_HEIGHT = 18;
+
+    let found = null;
+
+    for (const e of filtered) {
+
+        const row = ALLEES.length - ALLEES.indexOf(e.A) - 1;
+
+        const levels = getLevelsUpTo(NIV[e.A][e.T]);
+        const idxN = levels.indexOf(e.N);
+        if (idxN === -1) continue;
+
+        const x = (e.T - 1) * TRAVE_WIDTH + (e.POS - 1) * POS_WIDTH;
+        const y = row * ALLEE_GAP + (levels.length - idxN - 1) * LEVEL_HEIGHT;
+
+        if (px >= x && px <= x + POS_WIDTH &&
+            py >= y && py <= y + LEVEL_HEIGHT) {
+            found = e;
+            break;
+        }
+    }
+
+    if (!found) {
+        tooltip.style.display = "none";
+        removeRowHighlight();
+        return;
+    }
+
+    tooltip.style.left = (mx + 12) + "px";
+    tooltip.style.top  = (my + 12) + "px";
+    tooltip.style.display = "block";
+
+    tooltip.innerHTML = `
+        <b>${found.id}</b><br>
+        Allée : ${found.A}<br>
+        Travée : ${found.T}<br>
+        Niveau : ${found.N}<br>
+        Pos : ${found.POS}<br>
+        Stock : ${found.qty}
+    `;
+
+    highlightRowInTable(found.id);
+}
+
+/* -----------------------------
+   Highlight TABLE
+----------------------------- */
+function highlightRowInTable(id){
+    removeRowHighlight();
+    const row = document.querySelector(`tr[data-id="${id}"]`);
+    if (row) row.classList.add("highlighted-row");
+}
+
+function removeRowHighlight(){
+    document.querySelectorAll(".highlighted-row")
+        .forEach(el => el.classList.remove("highlighted-row"));
+}
+
+/* -----------------------------
+   Highlight PLAN ← Table
+----------------------------- */
+function highlightInPlan(e){
+
+    drawPlan();
+
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(zoom, zoom);
+
+    const TRAVE_WIDTH  = 120;
+    const POS_WIDTH    = TRAVE_WIDTH / 4;
+    const ALLEE_GAP    = 260;
+    const LEVEL_HEIGHT = 18;
+
+    const row = ALLEES.length - ALLEES.indexOf(e.A) - 1;
+    const levels = getLevelsUpTo(NIV[e.A][e.T]);
+    const idxN = levels.indexOf(e.N);
+    if (idxN === -1) return;
+
+    const x = (e.T - 1) * TRAVE_WIDTH + (e.POS - 1) * POS_WIDTH;
+    const y = row * ALLEE_GAP + (levels.length - idxN - 1) * LEVEL_HEIGHT;
+
+    ctx.strokeStyle = "#ffcc00";
+    ctx.lineWidth   = 3;
+    ctx.strokeRect(x, y, POS_WIDTH - 2, LEVEL_HEIGHT - 2);
+
+    ctx.restore();
+}
+
+/* -----------------------------
+   Reset highlight
+----------------------------- */
+function clearPlanHighlight(){
+    drawPlan();
+}
+/* ============================================================
+   BLOC 9/10 — Mini‑map + Setup Canvas
+============================================================ */
+
+/* -----------------------------
+   Mini-map
+----------------------------- */
+function drawMiniMap() {
+
+    if (!minimapCtx) return;
+
+    const W = minimap.width  = minimap.clientWidth;
+    const H = minimap.height = minimap.clientHeight;
+
+    minimapCtx.clearRect(0,0,W,H);
+
+    const TRAVE_WIDTH  = 120;
+    const POS_WIDTH    = TRAVE_WIDTH / 4;
+    const ALLEE_GAP    = 260;
+    const LEVEL_HEIGHT = 18;
+
+    const scaleX = W / (16 * TRAVE_WIDTH);
+    const scaleY = H / (ALLEES.length * ALLEE_GAP);
+    const scale  = Math.min(scaleX, scaleY);
+
+    filtered.forEach(e => {
+
+        const row = ALLEES.length - ALLEES.indexOf(e.A) - 1;
+        const levels = getLevelsUpTo(NIV[e.A][e.T]);
+        const idxN = levels.indexOf(e.N);
+        if (idxN === -1) return;
+
+        const x = ((e.T - 1) * TRAVE_WIDTH + (e.POS - 1) * POS_WIDTH) * scale;
+        const y = (row * ALLEE_GAP + (levels.length - idxN - 1) * LEVEL_HEIGHT) * scale;
+
+        minimapCtx.fillStyle =
+            e.status === "vide"   ? "#d32f2f" :
+            e.status === "faible" ? "#f57c00" :
+            e.status === "moyen"  ? "#f2c200" :
+                                    "#2e7d32";
+
+        minimapCtx.fillRect(
+            x,
+            y,
+            (POS_WIDTH - 2) * scale,
+            (LEVEL_HEIGHT - 2) * scale
+        );
+    });
+}
+
+/* -----------------------------
+   Setup Canvas principal
+----------------------------- */
+function setupCanvas() {
+
+    canvas  = document.getElementById("plan2d");
+    ctx     = canvas.getContext("2d");
+
+    minimap    = document.getElementById("minimap");
+    minimapCtx = minimap ? minimap.getContext("2d") : null;
+
+    tooltip = document.getElementById("tooltip");
+
+    resizeCanvas();
+
+    /* Zoom souris */
+    canvas.addEventListener("wheel", e => {
+        e.preventDefault();
+
+        const zoomAmount = 1 - e.deltaY * 0.0012;
+        const mx = (e.offsetX - offsetX) / zoom;
+        const my = (e.offsetY - offsetY) / zoom;
+
+        zoom *= zoomAmount;
+        zoom = Math.max(0.25, Math.min(zoom, 3.5));
+
+        offsetX = e.offsetX - mx * zoom;
+        offsetY = e.offsetY - my * zoom;
+
+        drawPlan();
+        drawMiniMap();
+    }, { passive:false });
+
+    /* Drag */
+    canvas.addEventListener("mousedown", e => {
+        dragging = true;
+        dragStartX = e.clientX - offsetX;
+        dragStartY = e.clientY - offsetY;
+        canvas.style.cursor = "grabbing";
+    });
+
+    canvas.addEventListener("mouseup", () => {
+        dragging = false;
+        canvas.style.cursor = "grab";
+    });
+
+    canvas.addEventListener("mousemove", e => {
+        if (dragging) {
+            offsetX = e.clientX - dragStartX;
+            offsetY = e.clientY - dragStartY;
+            drawPlan();
+            drawMiniMap();
+            return;
+        }
+        detectHover(e.offsetX, e.offsetY);
+    });
+
+    window.addEventListener("resize", () => {
+        resizeCanvas();
+        drawPlan();
+        drawMiniMap();
+    });
+}
+
+/* -----------------------------
+   Resize Canvas
+----------------------------- */
+function resizeCanvas() {
+    canvas.width  = 3000;
+    canvas.height = 2000;
+    canvas.style.width  = "100%";
+    canvas.style.height = "100%";
+}
+
+/* -----------------------------
+   Center on (table → plan)
+----------------------------- */
+function centerOn(e) {
+
+    const TRAVE_WIDTH = 120;
+    const POS_WIDTH   = TRAVE_WIDTH / 4;
+    const ALLEE_GAP   = 260;
+
+    const row = ALLEES.length - ALLEES.indexOf(e.A) - 1;
+
+    const x = (e.T - 1) * TRAVE_WIDTH + (e.POS - 1) * POS_WIDTH;
+    const y = row * ALLEE_GAP;
+
+    offsetX = canvas.width  / 2 - x * zoom;
+    offsetY = canvas.height / 2 - y * zoom;
+
+    drawPlan();
+    drawMiniMap();
+}
+/* ============================================================
+   BLOC 10/10 — Dashboard + Switch onglets + Init
+============================================================ */
+
+/* -----------------------------
+   Dashboard — Graphiques (3)
+----------------------------- */
+let chartStatus = null;
+let chartAllee  = null;
+let chartTop10  = null;
+let currentChartType = "bar";
+
+function renderDashboardCharts() {
+
+    const dashboard = document.getElementById("dashboardView");
+    if (!dashboard || !dashboard.classList.contains("active")) return;
+    if (typeof Chart === "undefined") return;
+
+    const statusCanvas = document.getElementById("chartStatus");
+    const alleeCanvas  = document.getElementById("chartAllee");
+    const top10Canvas  = document.getElementById("chartTop10");
+    if (!statusCanvas || !alleeCanvas || !top10Canvas) return;
+
+    /* --- 1) Répartition des statuts --- */
+    const counts = {
+        plein:  filtered.filter(e => e.status === "plein").length,
+        moyen:  filtered.filter(e => e.status === "moyen").length,
+        faible: filtered.filter(e => e.status === "faible").length,
+        vide:   filtered.filter(e => e.status === "vide").length
+    };
+
+    chartStatus?.destroy();
+    chartStatus = new Chart(statusCanvas, {
+        type: currentChartType,
+        data: {
+            labels: Object.keys(counts),
+            datasets: [{
+                label: "Nombre d’emplacements",
+                data: Object.values(counts)
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: true }
+            }
+        }
+    });
+
+    /* --- 2) Stock par allée --- */
+    const byAllee = {};
+    filtered.forEach(e => {
+        byAllee[e.A] = (byAllee[e.A] || 0) + e.qty;
+    });
+
+    chartAllee?.destroy();
+    chartAllee = new Chart(alleeCanvas, {
+        type: currentChartType,
+        data: {
+            labels: Object.keys(byAllee),
+            datasets: [{
+                label: "Quantité en stock",
+                data: Object.values(byAllee)
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: true }
+            }
+        }
+    });
+
+    /* --- 3) Top 10 articles --- */
+    const artMap = {};
+    filtered.forEach(e => {
+        e.articles.forEach(a => {
+            artMap[a.article] = (artMap[a.article] || 0) + e.qty;
+        });
+    });
+
+    const top10 = Object.entries(artMap)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
+
+    chartTop10?.destroy();
+    chartTop10 = new Chart(top10Canvas, {
+        type: currentChartType,
+        data: {
+            labels: top10.map(a => a[0]),
+            datasets: [{
+                label: "Quantité totale",
+                data: top10.map(a => a[1])
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: true }
+            }
+        }
+    });
+}
+
+/* -----------------------------
+   Sélecteur type graphique
+----------------------------- */
+const chartTypeSelect = document.getElementById("chartTypeSelect");
+if (chartTypeSelect) {
+    chartTypeSelect.addEventListener("change", e => {
+        currentChartType = e.target.value;
+        renderDashboardCharts();
+    });
+}
+
+
+/* -----------------------------
+   Switch Onglets
+----------------------------- */
+const tableView     = document.getElementById("tableView");
+const planView      = document.getElementById("planView");
+const dashboardView = document.getElementById("dashboardView");
+
+document.getElementById("btnTable").addEventListener("click", () => {
+    tableView.classList.add("active");
+    planView.classList.remove("active");
+    dashboardView.classList.remove("active");
+});
+
+document.getElementById("btnPlan").addEventListener("click", () => {
+    planView.classList.add("active");
+    tableView.classList.remove("active");
+    dashboardView.classList.remove("active");
+    drawPlan();
+    drawMiniMap();
+});
+
+document.getElementById("btnDashboard").addEventListener("click", () => {
+    tableView.classList.remove("active");
+    planView.classList.remove("active");
+    dashboardView.classList.add("active");
+
+    // attendre affichage réel avant Chart.js
+    setTimeout(() => {
+        renderDashboardKPI();
+        renderDashboardCharts();
+    }, 50);
+});
+
+/* -----------------------------
+   Panneau stats (drawer)
+----------------------------- */
+const statsPanel  = document.getElementById("sideStats");
+const statsToggle = document.getElementById("statsToggle");
+
+statsToggle.addEventListener("click", () => {
+    statsPanel.classList.toggle("open");
+    statsPanel.classList.toggle("closed");
+});
+
+/* -----------------------------
+   Refresh global sécurisé
+----------------------------- */
+function refresh() {
+    if (!dataset.length) return;
+
+    applyFilters();
+    renderTable();
+    drawPlan();
+    drawMiniMap();
+    updateIndicators();
+    renderDashboardKPI();
+
+    if (dashboardView.classList.contains("active")) {
+        renderDashboardCharts();
+    }
+}
+
+/* -----------------------------
+   Init application
+----------------------------- */
+document.addEventListener("DOMContentLoaded", () => {
+    setupCanvas();
+    refresh();
+});
+

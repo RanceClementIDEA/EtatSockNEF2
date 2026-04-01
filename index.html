@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>NEF2 – Visualisation des Stocks (SAP Fiori Local)</title>
+
+    <!-- TON CSS -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- XLSX -->
+    <script src="xlsx.full.min.js"></script>
+
+    <!-- Chart.js pour Dashboard -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- JS App -->
+    <script defer src="app.js"></script>
+</head>
+
+<body>
+
+<!-- ============================
+     HEADER SAP FIORI
+============================= -->
+<header id="appHeader">
+    <span class="sapIcon">&#xe000;</span>
+    <h1>NEF2 – Visualisation des Stocks</h1>
+</header>
+
+<!-- ============================
+     TOOLBAR SAP FIORI
+============================= -->
+<div id="toolbar">
+
+    <!-- Import Excel -->
+    <label class="fioriBtn">
+        <span class="sapIcon">&#xe1d2;</span>
+        Importer Excel
+        <input type="file" id="fileInput" hidden accept=".xlsx">
+    </label>
+
+    <!-- Filtres -->
+    <input id="filterText" type="text" placeholder="Recherche…" />
+    <input id="filterA" type="text" placeholder="Allée" />
+    <input id="filterT" type="number" placeholder="Travée" />
+    <input id="filterN" type="text" placeholder="Niveau" />
+    <input id="filterPos" type="number" placeholder="Pos" />
+
+    <!-- Filtre Status -->
+    <select id="filterStatus">
+        <option value="">Status</option>
+        <option value="plein">Plein</option>
+        <option value="moyen">Moyen</option>
+        <option value="faible">Faible</option>
+        <option value="vide">Vide</option>
+    </select>
+
+    <!-- Filtre Gestionnaire (SELECT dynamique) -->
+    <select id="filterGest">
+        <option value="">Gest</option>
+    </select>
+
+    <!-- ONGLET TABLEAU -->
+    <button id="btnTable" class="fioriTab">
+        <span class="sapIcon">&#xe0fa;</span>
+        Tableau
+    </button>
+
+    <!-- ONGLET PLAN 2D -->
+    <button id="btnPlan" class="fioriTab">
+        <span class="sapIcon">&#xe24b;</span>
+        Plan 2D
+    </button>
+
+    <!-- ONGLET DASHBOARD -->
+    <button id="btnDashboard" class="fioriTab">
+        <span class="sapIcon">&#xe202;</span>
+        Dashboard
+    </button>
+
+    <!-- Dark mode -->
+    <button id="btnTheme" class="fioriSmallBtn">
+        <span class="sapIcon">&#xe1b1;</span>
+    </button>
+</div>
+
+<!-- ============================
+     PANEL STATISTIQUES (TIROIR DROIT)
+============================= -->
+<aside id="sideStats" class="closed">
+    <div class="sideHeader">
+        <span class="sapIcon">&#xe2c5;</span>
+        <h2>Statistiques</h2>
+    </div>
+
+    <!-- KPI Cards -->
+    <div id="kpiDashboard"></div>
+
+    <div class="statItem">
+        <span>Taux de remplissage</span>
+        <strong id="sideFillRate">0%</strong>
+    </div>
+
+    <div class="statItem">
+        <span>Emplacements filtrés</span>
+        <strong id="sideCount">0</strong>
+    </div>
+
+    <div class="statItem">
+        <span>Stock total filtré</span>
+        <strong id="sideQty">0</strong>
+    </div>
+
+    <h3>Status des emplacements</h3>
+    <canvas id="statusChart"></canvas>
+</aside>
+
+<!-- BOUTON OUVERTURE PANEL -->
+<div id="statsToggle">
+    <span class="sapIcon">&#xe2c5;</span>
+</div>
+
+<!-- ============================
+     CONTENU PRINCIPAL
+============================= -->
+<main>
+
+    <!-- ===== TABLEAU ===== -->
+    <section id="tableView" class="tab active">
+
+        <div id="tableWrapper" class="fioriCard">
+            <table id="tableStock">
+                <thead>
+                    <tr>
+                        <th>Empl.</th>
+                        <th>A</th>
+                        <th>T</th>
+                        <th>N</th>
+                        <th>Pos</th>
+                        <th>Article(s)</th>
+                        <th>Qté tot</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+
+        <div id="pagination" class="fioriPagination">
+            <button id="pagePrev">⟨</button>
+            <span id="pageInfo"></span>
+            <button id="pageNext">⟩</button>
+        </div>
+    </section>
+
+
+
+    <!-- ===== PLAN 2D ===== -->
+    <section id="planView" class="tab">
+        <canvas id="plan2d" width="3000" height="2000"></canvas>
+
+        <!-- TOOLTIP -->
+        <div id="tooltip"></div>
+    </section>
+
+
+
+    <!-- ===== DASHBOARD GRAPHIQUES ===== -->
+    <section id="dashboardView" class="tab">
+
+        <h2>Dashboard – KPI & Graphiques</h2>
+
+        <!-- Sélecteur type de graphique -->
+        <div class="dashboard-toolbar">
+            <label for="chartTypeSelect">Type de graphique :</label>
+            <select id="chartTypeSelect">
+                <option value="bar">Barres</option>
+                <option value="pie">Camembert</option>
+                <option value="doughnut">Donut</option>
+                <option value="line">Ligne</option>
+                <option value="radar">Radar</option>
+            </select>
+        </div>
+
+        <!-- KPI Cards -->
+        <div id="kpiDashboard"></div>
+
+        <!-- Graphiques -->
+        <div class="dashboard-charts">
+
+            <div class="chart-card">
+                <h3>Répartition des statuts</h3>
+                <canvas id="chartStatus" height="180"></canvas>
+            </div>
+
+            <div class="chart-card">
+                <h3>Stock par allée</h3>
+                <canvas id="chartAllee" height="180"></canvas>
+            </div>
+
+            <div class="chart-card">
+                <h3>Top 5 familles</h3>
+                <canvas id="chartFamilles" height="180"></canvas>
+            </div>
+
+            <div class="chart-card">
+                <h3>Top 5 gestionnaires</h3>
+                <canvas id="chartGest" height="180"></canvas>
+            </div>
+
+            <div class="chart-card full-width">
+                <h3>Top 10 articles les plus stockés</h3>
+                <canvas id="chartTop10" height="220"></canvas>
+            </div>
+
+        </div>
+
+    </section>
+
+</main>
+
+</body>
+</html>
