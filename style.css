@@ -1,26 +1,11 @@
+/* ============================================================
+   SAP Fiori — Variables + Thème global
+============================================================ */
 @font-face {
     font-family: "SAP-icons";
     src: url("fonts/SAP-icons.ttf") format("truetype");
 }
 
-* {
-    box-sizing: border-box;
-}
-
-body, input, select, button, table, td, th {
-    font-family: "72", "72full", Arial, sans-serif;
-    font-size: 13px;
-    line-height: 1.25;
-}
-
-.sapIcon {
-    font-family: "SAP-icons";
-    font-size: 18px;
-    line-height: 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
 :root {
     --sapPrimary: #0a6ed1;
     --sapPrimaryHover: #085caf;
@@ -38,6 +23,8 @@ body, input, select, button, table, td, th {
 
     --sapShadow: 0 2px 6px rgba(0,0,0,0.12);
 }
+
+/* Dark mode optimisé */
 body.dark {
     --sapPrimary: #91c8ff;
     --sapPrimaryHover: #7ab2e6;
@@ -55,13 +42,31 @@ body.dark {
 
     --sapShadow: 0 2px 8px rgba(0,0,0,0.45);
 }
+
+/* ============================================================
+   Reset & Général
+============================================================ */
+* { box-sizing: border-box; }
+
 body {
     margin: 0;
     background: var(--sapBg);
     color: var(--sapText);
+    font-family: "72", Arial, sans-serif;
+    font-size: 13px;
     overflow-x: hidden;
-    overflow-y: auto;
 }
+
+.sapIcon {
+    font-family: "SAP-icons";
+    font-size: 18px;
+    display: inline-flex;
+    align-items: center;
+}
+
+/* ============================================================
+   HEADER
+============================================================ */
 #appHeader {
     height: 48px;
     background: var(--sapPrimary);
@@ -74,6 +79,10 @@ body {
     font-weight: 600;
     box-shadow: var(--sapShadow);
 }
+
+/* ============================================================
+   TOOLBAR
+============================================================ */
 #toolbar {
     display: flex;
     align-items: center;
@@ -81,9 +90,9 @@ body {
     padding: 6px 12px;
     background: var(--sapCard);
     border-bottom: 1px solid var(--sapSeparator);
+    height: 44px;
 }
 
-/* Champs filtres */
 #toolbar input,
 #toolbar select {
     height: 32px;
@@ -93,11 +102,13 @@ body {
     background: #fafcfd;
 }
 
-/* Largeurs Fiori */
+/* Largeurs optimisées */
 #filterText { width: 180px; }
 #filterA, #filterN { width: 70px; }
-#filterT, #filterPos { width: 60px; }
-#filterStatus, #filterGest { width: 90px; }
+#filterT, #filterPos { width: 72px; }
+#filterStatus, #filterGest { width: 100px; }
+
+/* Boutons Fiori */
 .fioriBtn,
 .fioriTab,
 .fioriSmallBtn {
@@ -107,11 +118,12 @@ body {
     color: white;
     border: none;
     border-radius: 4px;
-    display: inline-flex;
+    font-weight: 600;
+    display: flex;
     align-items: center;
     gap: 6px;
-    font-weight: 600;
     cursor: pointer;
+    transition: background .15s;
 }
 
 .fioriBtn:hover,
@@ -119,13 +131,10 @@ body {
 .fioriSmallBtn:hover {
     background: var(--sapPrimaryHover);
 }
-.tab {
-    display: none;
-}
 
-.tab.active {
-    display: block;
-}
+/* ============================================================
+   TABLEAU
+============================================================ */
 #tableWrapper {
     height: calc(100vh - 200px);
     overflow-y: auto;
@@ -151,14 +160,16 @@ body {
 #tableStock td {
     padding: 8px;
     border-bottom: 1px solid var(--sapSeparator);
-    vertical-align: middle;
     text-align: center;
+    vertical-align: middle;
 }
 
 #tableStock td:nth-child(6) {
     text-align: left;
     width: 420px;
 }
+
+/* Article list */
 .article-list {
     display: flex;
     flex-direction: column;
@@ -176,8 +187,14 @@ body {
 .article-item strong {
     color: var(--sapPrimary);
     font-weight: 600;
-    display: block;
 }
+
+/* Highlight de ligne */
+.highlighted-row {
+    background: rgba(255, 230, 120, 0.35) !important;
+}
+
+/* Badges status */
 .badge {
     padding: 4px 10px;
     border-radius: 10px;
@@ -186,10 +203,12 @@ body {
     color: white;
 }
 
-.badge.plein  { background:#2e7d32; }
-.badge.moyen  { background:#f2c200; color:#333; }
-.badge.faible { background:#f57c00; }
-.badge.vide   { background:#d32f2f; }
+.badge.plein { background: #2e7d32; }
+.badge.moyen { background: #f2c200; color:#333; }
+.badge.faible { background: #f57c00; }
+.badge.vide  { background: #d32f2f; }
+
+/* Pagination */
 #pagination {
     display: flex;
     justify-content: center;
@@ -199,6 +218,10 @@ body {
     background: var(--sapCard);
     border-top: 1px solid var(--sapSeparator);
 }
+
+/* ============================================================
+   PANEL STATS LATÉRAL
+============================================================ */
 #sideStats {
     position: fixed;
     top: 96px;
@@ -209,9 +232,9 @@ body {
     border-left: 1px solid var(--sapSeparator);
     box-shadow: var(--sapShadow);
     transform: translateX(320px);
-    transition: transform 0.3s ease;
-    overflow-y: auto;
+    transition: transform .3s ease;
     padding: 16px;
+    overflow: hidden;
 }
 
 #sideStats.open {
@@ -232,31 +255,16 @@ body {
     border-radius: 6px 0 0 6px;
     cursor: pointer;
 }
-#dashboardView {
-    min-height: calc(100vh - 200px);
-    overflow-y: auto;
-    padding: 20px;
-}
 
-#kpiDashboard {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px,1fr));
-    gap: 12px;
-}
-
-.kpi-card {
-    background: var(--sapTile);
-    padding: 14px;
-    border-radius: 8px;
-    box-shadow: var(--sapShadow);
-    text-align: center;
-    font-weight: 600;
-}
+/* ============================================================
+   PLAN 2D
+============================================================ */
 #planView {
     height: calc(100vh - 200px);
     border: 1px solid var(--sapBorder);
     border-radius: 6px;
     overflow: hidden;
+    position: relative;
 }
 
 #tooltip {
@@ -266,145 +274,47 @@ body {
     padding: 8px 12px;
     border-radius: 6px;
     font-size: 12px;
-    z-index: 50;
+    display: none;
+    pointer-events: none;
 }
+
 /* ============================================================
-   CORRECTIONS SAP FIORI — ALIGNEMENT & UX
+   DASHBOARD
 ============================================================ */
-
-/* STOP scroll horizontal */
-html, body {
-    max-width: 100vw;
-    overflow-x: hidden;
-}
-
-#toolbar,
-#dashboardView,
-#tableWrapper,
-#planView {
-    max-width: 100%;
-    overflow-x: hidden;
-}
-
-/* TOOLBAR centrée & compacte */
-#toolbar {
-    display: flex;
-    align-items: center;
-    height: 44px;
-}
-
-#toolbar input,
-#toolbar select,
-.fioriBtn,
-.fioriTab,
-.fioriSmallBtn {
-    height: 32px;
-    line-height: 32px;
-}
-
-/* Champs numériques pas coupés */
-#filterT,
-#filterPos {
-    width: 72px;
-}
-
-/* Sélecteurs */
-#filterStatus,
-#filterGest {
-    width: 100px;
-}
-
-/* DASHBOARD dézoomé */
 #dashboardView {
-    padding: 16px;
-}
-
-#kpiDashboard {
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-}
-
-.kpi-card {
-    font-size: 13px;
-    padding: 10px;
-}
-
-/* Graphiques limités */
-#dashboardView canvas {
-    max-height: 220px;
-}
-
-/* PANNEAU STATS scrollable */
-#sideStats {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-#sideStats > *:not(.sideHeader) {
+    padding: 20px;
     overflow-y: auto;
 }
 
-/* Pagination centrée */
-#pagination {
-    justify-content: center;
-    width: 100%;
-}
-/* ============================================================
-   SIDE STATS — STRUCTURE FIORI CORRECTE
-============================================================ */
-
-#sideStats {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden; /* ✅ le conteneur ne scrolle plus */
+#kpiDashboard {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px,1fr));
+    gap: 12px;
 }
 
-/* Header toujours visible */
-#sideStats .sideHeader {
-    flex: 0 0 auto;
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--sapSeparator);
-}
-
-/* KPI fixes (ne scrollent pas) */
-#sideStats .statItem {
-    flex: 0 0 auto;
-}
-
-/* Zone scrollable UNIQUEMENT pour les graphiques */
-#sideStats canvas {
-    flex: 1 1 auto;
-    margin-top: 12px;
-}
-/* ============================================================
-   MODE NUIT — CORRECTION COMPLÈTE
-============================================================ */
-
-body.dark #dashboardView,
-body.dark #tableWrapper,
-body.dark #planView {
-    background: var(--sapBg);
-}
-
-/* KPI */
-body.dark .kpi-card {
+.kpi-card {
     background: var(--sapTile);
-    color: var(--sapText);
+    padding: 12px;
+    border-radius: 8px;
+    box-shadow: var(--sapShadow);
+    text-align: center;
+    font-weight: 600;
 }
 
-/* Articles encadrés */
-body.dark .article-item {
+.dashboard-charts canvas {
+    max-height: 220px;
+}
+
+.chart-card {
     background: var(--sapTile);
-    border-color: var(--sapBorder);
+    padding: 14px;
+    border-radius: 6px;
+    box-shadow: var(--sapShadow);
+    margin-bottom: 16px;
 }
 
-/* Panneau stats */
-body.dark #sideStats {
-    background: var(--sapCard);
-    color: var(--sapText);
-}
-
-/* Histogramme status */
-body.dark #statusChart {
-    background: transparent;
-}
+/* ============================================================
+   Tabs
+============================================================ */
+.tab { display: none; }
+.tab.active { display: block; }

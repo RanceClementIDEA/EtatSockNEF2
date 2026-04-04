@@ -26,6 +26,9 @@ let dragging = false;
 let dragStartX = 0;
 let dragStartY = 0;
 
+const tableView     = document.getElementById("tableView");
+const planView      = document.getElementById("planView");
+const dashboardView = document.getElementById("dashboardView");
 /* ------------------------------------------------------------
    Utils
 ------------------------------------------------------------ */
@@ -496,12 +499,40 @@ function drawPlan() {
     ctx.translate(offsetX, offsetY);
     ctx.scale(zoom, zoom);
 
+    /* === LÉGENDE DES ALLÉES (verticale à gauche du plan) === */
+    ctx.save();
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 20px sans-serif";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+
+    ALLEES.forEach((A, idxA) => {
+        const row = ALLEES.length - idxA - 1;
+        const y = row * 260 + 130;      // Milieu de l’allée
+        ctx.fillText(A, -25, y);        // Position à gauche du plan
+    });
+    ctx.restore();
+
+    /* === LÉGENDE DES TRAVÉES (horizontale au-dessus du plan) === */
+    ctx.save();
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 18px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+
+    for (let T = 1; T <= 16; T++) {
+        const x = (T - 1) * 120 + 60;   // Centre de la travée
+        ctx.fillText(T, x, -10);        // Position au-dessus du plan
+    }
+    ctx.restore();
+
+
+    /* === DESSIN DU PLAN === */
     const TRAVE_WIDTH  = 120;
     const POS_WIDTH    = TRAVE_WIDTH / 4;
     const ALLEE_GAP    = 260;
     const LEVEL_HEIGHT = 18;
 
-    /* Afficher uniquement les emplacements filtrés */
     const visible = new Set(
         filtered.map(e => `${e.A}-${e.T}-${e.N}-${e.POS}`)
     );
@@ -555,6 +586,7 @@ function drawPlan() {
 
     ctx.restore();
 }
+
 /* ============================================================
    BLOC 8/10 — Tooltip + Highlight
 ============================================================ */
@@ -832,23 +864,47 @@ function renderDashboardCharts() {
     const statusCanvas = document.getElementById("chartStatus");
     const alleeCanvas  = document.getElementById("chartAllee");
     const top10Canvas  = document.getElementById("chartTop10");
+    const mode = dashboardMode ? dashboardMode.value : "locations";
     if (!statusCanvas || !alleeCanvas || !top10Canvas) return;
 
-    /* --- 1) Répartition des statuts --- */
-    const counts = {
+/* --- 1) Répartition des statuts --- */
+let counts;
+
+if (mode === "locations") {
+    // ✅ Emplacements (inchangé)
+    counts = {
         plein:  filtered.filter(e => e.status === "plein").length,
         moyen:  filtered.filter(e => e.status === "moyen").length,
         faible: filtered.filter(e => e.status === "faible").length,
         vide:   filtered.filter(e => e.status === "vide").length
     };
+} else {
+    // ✅ ARTICLES DANS les emplacements selon leur statut
+    counts = {
+        plein:  filtered.filter(e => e.status === "plein")
+                        .flatMap(e => e.articles)
+                        .reduce((t,a) => t + a.qty, 0),
 
+        moyen:  filtered.filter(e => e.status === "moyen")
+                        .flatMap(e => e.articles)
+                        .reduce((t,a) => t + a.qty, 0),
+
+        faible: filtered.filter(e => e.status === "faible")
+                        .flatMap(e => e.articles)
+                        .reduce((t,a) => t + a.qty, 0),
+
+        vide:   filtered.filter(e => e.status === "vide")
+                        .flatMap(e => e.articles)
+                        .reduce((t,a) => t + a.qty, 0)
+    };
+}
     chartStatus?.destroy();
     chartStatus = new Chart(statusCanvas, {
         type: currentChartType,
         data: {
             labels: Object.keys(counts),
             datasets: [{
-                label: "Nombre d’emplacements",
+                label: mode === "locations" ? "Nombre d’emplacements" : "Quantité d’articles",
                 data: Object.values(counts)
             }]
         },
@@ -863,9 +919,18 @@ function renderDashboardCharts() {
 
     /* --- 2) Stock par allée --- */
     const byAllee = {};
+
+if (mode === "locations") {
+    // ✅ NOMBRE D’EMPLACEMENTS PAR ALLÉE
+    filtered.forEach(e => {
+        byAllee[e.A] = (byAllee[e.A] || 0) + 1;
+    });
+} else {
+    // ✅ NOMBRE D’ARTICLES PAR ALLÉE
     filtered.forEach(e => {
         byAllee[e.A] = (byAllee[e.A] || 0) + e.qty;
     });
+}
 
     chartAllee?.destroy();
     chartAllee = new Chart(alleeCanvas, {
@@ -873,7 +938,7 @@ function renderDashboardCharts() {
         data: {
             labels: Object.keys(byAllee),
             datasets: [{
-                label: "Quantité en stock",
+                label: mode === "locations" ? "Quantité par emplacement" : "Quantité par articles",
                 data: Object.values(byAllee)
             }]
         },
@@ -888,11 +953,22 @@ function renderDashboardCharts() {
 
     /* --- 3) Top 10 articles --- */
     const artMap = {};
+
+if (mode === "locations") {
+    // ✅ On compte les EMPLACEMENTS où l’article apparaît
     filtered.forEach(e => {
         e.articles.forEach(a => {
-            artMap[a.article] = (artMap[a.article] || 0) + e.qty;
+            artMap[a.article] = (artMap[a.article] || 0) + 1;
         });
     });
+} else {
+    // ✅ On compte les QUANTITÉS d’articles
+    filtered.forEach(e => {
+        e.articles.forEach(a => {
+            artMap[a.article] = (artMap[a.article] || 0) + a.qty;
+        });
+    });
+}
 
     const top10 = Object.entries(artMap)
         .sort((a, b) => b[1] - a[1])
@@ -916,12 +992,69 @@ function renderDashboardCharts() {
             }
         }
     });
+
+/* --- 4) Top 5 gestionnaires --- */
+const gestMap = {};
+
+if (mode === "locations") {
+    // ✅ COMPTE LE NB D’EMPLACEMENTS PAR GESTIONNAIRE
+    filtered.forEach(e => {
+        const gests = new Set(e.articles.map(a => (a.gest || "NC").trim() || "NC"));
+        gests.forEach(g => {
+            gestMap[g] = (gestMap[g] || 0) + 1;
+        });
+    });
+} else {
+    // ✅ COMPTE LE NB D’ARTICLES PAR GESTIONNAIRE
+    filtered.forEach(e => {
+        e.articles.forEach(a => {
+            let g = (a.gest || "").trim() || "NC";
+            gestMap[g] = (gestMap[g] || 0) + a.qty;
+        });
+    });
 }
 
+const topGest = Object.entries(gestMap)
+    .sort((a,b) => b[1] - a[1])
+    .slice(0,5);
+
+const gestCanvas = document.getElementById("chartGest");
+
+if (gestCanvas) {
+
+    if (window.chartGest instanceof Chart) {
+        window.chartGest.destroy();
+    }
+
+    window.chartGest = new Chart(gestCanvas, {
+        type: currentChartType,
+        data: {
+            labels: topGest.map(x => x[0]),
+            datasets: [{
+                label: "Qté totale",
+                data: topGest.map(x => x[1]),
+                backgroundColor: [
+                    "#1976d2","#1e88e5","#42a5f5","#64b5f6","#90caf9"
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false
+        }
+    });
+}
+}
 /* -----------------------------
    Sélecteur type graphique
 ----------------------------- */
 const chartTypeSelect = document.getElementById("chartTypeSelect");
+const dashboardMode = document.getElementById("dashboardMode");
+if (dashboardMode) {
+    dashboardMode.addEventListener("change", () => {
+        renderDashboardCharts();
+    });
+}
 if (chartTypeSelect) {
     chartTypeSelect.addEventListener("change", e => {
         currentChartType = e.target.value;
@@ -933,9 +1066,6 @@ if (chartTypeSelect) {
 /* -----------------------------
    Switch Onglets
 ----------------------------- */
-const tableView     = document.getElementById("tableView");
-const planView      = document.getElementById("planView");
-const dashboardView = document.getElementById("dashboardView");
 
 document.getElementById("btnTable").addEventListener("click", () => {
     tableView.classList.add("active");
@@ -999,4 +1129,3 @@ document.addEventListener("DOMContentLoaded", () => {
     setupCanvas();
     refresh();
 });
-
