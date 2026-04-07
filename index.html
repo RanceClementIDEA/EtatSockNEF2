@@ -33,24 +33,8 @@
         <input type="file" id="fileInput" hidden accept=".xlsx">
     </label>
 
-    <!-- Filtres -->
+    <!-- Recherche texte -->
     <input id="filterText" type="text" placeholder="Recherche…">
-    <input id="filterA" type="text" placeholder="Allée">
-    <input id="filterT" type="number" placeholder="Travée">
-    <input id="filterN" type="text" placeholder="Niveau">
-    <input id="filterPos" type="number" placeholder="Pos">
-
-    <select id="filterStatus">
-        <option value="">Status</option>
-        <option value="plein">Plein</option>
-        <option value="moyen">Moyen</option>
-        <option value="faible">Faible</option>
-        <option value="vide">Vide</option>
-    </select>
-
-    <select id="filterGest">
-        <option value="">Gest</option>
-    </select>
 
     <!-- Onglets -->
     <button id="btnTable" class="fioriTab">
@@ -65,7 +49,102 @@
         <span class="sapIcon"></span> Dashboard
     </button>
 
-    
+</div>
+
+<!-- ============================ TOOLBAR FILTERS ============================ -->
+<div id="toolbarFilters">
+
+    <!-- Allées -->
+    <div class="filter-group" id="filterA">
+        <div class="filter-title">Allées</div>
+        <div class="filter-content">
+            <label><input type="checkbox" value="A"> A</label>
+            <label><input type="checkbox" value="B"> B</label>
+            <label><input type="checkbox" value="C"> C</label>
+            <label><input type="checkbox" value="D"> D</label>
+            <label><input type="checkbox" value="E"> E</label>
+            <label><input type="checkbox" value="F"> F</label>
+            <label><input type="checkbox" value="G"> G</label>
+            <label><input type="checkbox" value="H"> H</label>
+            <label><input type="checkbox" value="I"> I</label>
+            <label><input type="checkbox" value="J"> J</label>
+            <label><input type="checkbox" value="K"> K</label>
+            <label><input type="checkbox" value="L"> L</label>
+            <label><input type="checkbox" value="M"> M</label>
+            <label><input type="checkbox" value="N"> N</label>
+        </div>
+    </div>
+
+    <!-- Travées -->
+    <div class="filter-group" id="filterT">
+        <div class="filter-title">Travées</div>
+        <div class="filter-content">
+            <label><input type="checkbox" value="1"> 1</label>
+            <label><input type="checkbox" value="2"> 2</label>
+            <label><input type="checkbox" value="3"> 3</label>
+            <label><input type="checkbox" value="4"> 4</label>
+            <label><input type="checkbox" value="5"> 5</label>
+            <label><input type="checkbox" value="6"> 6</label>
+            <label><input type="checkbox" value="7"> 7</label>
+            <label><input type="checkbox" value="8"> 8</label>
+            <label><input type="checkbox" value="9"> 9</label>
+            <label><input type="checkbox" value="10"> 10</label>
+            <label><input type="checkbox" value="11"> 11</label>
+            <label><input type="checkbox" value="12"> 12</label>
+            <label><input type="checkbox" value="13"> 13</label>
+            <label><input type="checkbox" value="14"> 14</label>
+            <label><input type="checkbox" value="15"> 15</label>
+            <label><input type="checkbox" value="16"> 16</label>
+        </div>
+    </div>
+
+    <!-- Niveaux -->
+    <div class="filter-group" id="filterN">
+        <div class="filter-title">Niveaux</div>
+        <div class="filter-content">
+            <label><input type="checkbox" value="A"> A</label>
+            <label><input type="checkbox" value="B"> B</label>
+            <label><input type="checkbox" value="C"> C</label>
+            <label><input type="checkbox" value="D"> D</label>
+            <label><input type="checkbox" value="E"> E</label>
+            <label><input type="checkbox" value="F"> F</label>
+            <label><input type="checkbox" value="G"> G</label>
+            <label><input type="checkbox" value="H"> H</label>
+            <label><input type="checkbox" value="I"> I</label>
+            <label><input type="checkbox" value="J"> J</label>
+        </div>
+    </div>
+
+    <!-- Position -->
+    <div class="filter-group" id="filterPos">
+        <div class="filter-title">Position</div>
+        <div class="filter-content">
+            <label><input type="checkbox" value="1"> 1</label>
+            <label><input type="checkbox" value="2"> 2</label>
+            <label><input type="checkbox" value="3"> 3</label>
+            <label><input type="checkbox" value="4"> 4</label>
+        </div>
+    </div>
+
+    <!-- Statut -->
+    <div class="filter-group" id="filterStatus">
+        <div class="filter-title">Statut</div>
+        <div class="filter-content">
+            <label><input type="checkbox" value="plein"> Plein</label>
+            <label><input type="checkbox" value="moyen"> Moyen</label>
+            <label><input type="checkbox" value="faible"> Faible</label>
+            <label><input type="checkbox" value="vide"> Vide</label>
+        </div>
+    </div>
+
+    <!-- Gestionnaire -->
+    <div class="filter-group" id="filterGest">
+        <div class="filter-title">Gestionnaire</div>
+        <div class="filter-content">
+            <!-- Rempli dynamiquement en JS -->
+        </div>
+    </div>
+
 </div>
 
 <!-- ============================ PANEL STATS ============================ -->

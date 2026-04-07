@@ -78,6 +78,8 @@ body {
     font-size: 18px;
     font-weight: 600;
     box-shadow: var(--sapShadow);
+    position: relative;
+    z-index: 100;
 }
 
 /* ============================================================
@@ -91,6 +93,8 @@ body {
     background: var(--sapCard);
     border-bottom: 1px solid var(--sapSeparator);
     height: 44px;
+    position: relative;   /* ✅ crée un contexte */
+    z-index: 1000;        /* ✅ AU‑DESSUS du tableau et du dashboard */
 }
 
 #toolbar input,
@@ -235,6 +239,7 @@ body {
     transition: transform .3s ease;
     padding: 16px;
     overflow: hidden;
+    z-index: 2900;
 }
 
 #sideStats.open {
@@ -243,15 +248,21 @@ body {
 
 #statsToggle {
     position: fixed;
-    top: 120px;
+    top: 70px;
     right: 0;
+
+    z-index: 3000;      /* ✅ AU‑DESSUS DE TOUT */
+    pointer-events: auto;
+
     width: 36px;
     height: 48px;
     background: var(--sapPrimary);
     color: white;
+
     display: flex;
     align-items: center;
     justify-content: center;
+
     border-radius: 6px 0 0 6px;
     cursor: pointer;
 }
@@ -318,3 +329,127 @@ body {
 ============================================================ */
 .tab { display: none; }
 .tab.active { display: block; }
+
+/* ============================================================
+   TOOLBAR — actions principales (ligne Fiori)
+============================================================ */
+
+#toolbar {
+    position: relative;
+    z-index: 1000;
+
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    height: 44px;
+    padding: 0 12px;
+
+    background: var(--sapCard);
+    border-bottom: 1px solid var(--sapSeparator);
+}
+
+/* Champs & boutons Fiori */
+#toolbar input,
+#toolbar button,
+#toolbar label.fioriBtn {
+    height: 32px;
+}
+
+
+/* ============================================================
+   TOOLBAR FILTERS — zone des filtres (dropdowns)
+============================================================ */
+
+#toolbarFilters {
+    position: relative;
+    z-index: 900;
+
+    display: flex;
+    gap: 8px;
+    padding: 6px 12px;
+
+    background: var(--sapBg);
+    border-bottom: 1px solid var(--sapSeparator);
+}
+
+
+/* ============================================================
+   FILTRES MULTI — DROPDOWN CHECKBOXES
+============================================================ */
+
+/* Conteneur du filtre */
+.filter-group {
+    position: relative;
+    width: 120px;
+    font-size: 12px;
+}
+
+/* Titre cliquable (style champ Fiori) */
+.filter-title {
+    height: 32px;
+    line-height: 30px;
+
+    padding: 0 8px;
+    font-weight: 600;
+
+    background: #fafcfd;
+    border: 1px solid var(--sapBorder);
+    border-radius: 4px;
+
+    cursor: pointer;
+    user-select: none;
+}
+
+/* Menu déroulant */
+.filter-content {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+
+    width: 100%;
+    max-height: 240px;
+
+    padding: 6px;
+
+    background: #ffffff;
+    border: 1px solid var(--sapBorder);
+    border-radius: 4px;
+    box-shadow: var(--sapShadow);
+
+    overflow-y: auto;
+    overflow-x: hidden;
+
+    display: none;
+    z-index: 2000;
+}
+
+/* État ouvert */
+.filter-group.open .filter-content {
+    display: block;
+}
+
+/* Ligne checkbox */
+.filter-content label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+/* ============================================================
+   PLAN 2D
+============================================================ */
+
+#planView {
+    height: calc(100vh - 200px);
+    border: 1px solid var(--sapBorder);
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative;
+}
+
+#plan2d {
+    display: block;
+}

@@ -40,6 +40,22 @@ function normalize(str){
         .replace(/[\u0300-\u036f]/g,"")
         .replace(/[^a-z0-9]/g,"");
 }
+function getCheckedValues(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return [];
+    return Array
+        .from(container.querySelectorAll('input[type="checkbox"]:checked'))
+        .map(cb => cb.value);
+}
+function hasChecked(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return false;
+
+    return container.querySelectorAll(
+        'input[type="checkbox"]:checked'
+    ).length > 0;
+}
+
 /* ============================================================
    BLOC 2/10 — Import XLSX
 ============================================================ */
@@ -182,18 +198,35 @@ function buildDataset(){
    Sélecteur Gestionnaire
 ----------------------------- */
 function populateGestSelect() {
+    const group = document.getElementById("filterGest");
+    if (!group) return;
 
-    const sel = document.getElementById("filterGest");
-    if (!sel) return;
+    const content = group.querySelector(".filter-content");
+    if (!content) return;
 
-    sel.innerHTML = `<option value="">Gest</option>`;
+    content.innerHTML = "";
 
     GESTIONNAIRES.forEach(g => {
-        const opt = document.createElement("option");
-        opt.value = g;
-        opt.textContent = g;
-        sel.appendChild(opt);
+        const label = document.createElement("label");
+        label.innerHTML = `<input type="checkbox" value="${g}"> ${g}`;
+        content.appendChild(label);
     });
+}
+
+function populatePosFilter() {
+    const group = document.getElementById("filterPos");
+    if (!group) return;
+
+    const content = group.querySelector(".filter-content");
+    if (!content) return;
+
+    content.innerHTML = "";
+
+    for (let p = 1; p <= 4; p++) {
+        const label = document.createElement("label");
+        label.innerHTML = `<input type="checkbox" value="${p}"> ${p}`;
+        content.appendChild(label);
+    }
 }
 
 /* -----------------------------
@@ -213,28 +246,31 @@ const filterGest   = document.getElementById("filterGest");
 ----------------------------- */
 function applyFilters() {
 
-    if (!filterText || !filterA || !filterStatus) return;
+    if (!filterText) return;
 
     const txt = normalize(filterText.value || "");
-    const FA  = filterA.value.trim().toUpperCase();
-    const FT  = filterT.value.trim();
-    const FN  = filterN.value.trim().toUpperCase();
-    const FP  = filterPos.value.trim();
-    const FS  = filterStatus.value.trim();
-    const FG  = filterGest.value.trim().toUpperCase();
+
+    // ✅ TOUS LES FILTRES SONT DÉCLARÉS AVANT
+    const FA = getCheckedValues("filterA").map(v => v.toUpperCase());
+    const FT = getCheckedValues("filterT").map(v => parseInt(v));
+    const FN = getCheckedValues("filterN").map(v => v.toUpperCase());
+    const FP = getCheckedValues("filterPos").map(v => parseInt(v));
+    const FS = getCheckedValues("filterStatus");
+    const FG = getCheckedValues("filterGest").map(v => v.toUpperCase());
 
     filtered = dataset.filter(e => {
 
-        if (FA && e.A !== FA) return false;
-        if (FT && e.T !== parseInt(FT)) return false;
-        if (FN && e.N !== FN) return false;
-        if (FP && e.POS !== parseInt(FP)) return false;
-        if (FS && e.status !== FS) return false;
+        if (FA.length && !FA.includes(e.A)) return false;
+        if (FT.length && !FT.includes(e.T)) return false;
+        if (FN.length && !FN.includes(e.N)) return false;
+        if (FP.length && !FP.includes(e.POS)) return false;
+        if (FS.length && !FS.includes(e.status)) return false;
 
-        if (FG && !e.articles.some(a =>
-            (a.gest || "").toUpperCase() === FG
+        if (FG.length && !e.articles.some(a =>
+            FG.includes((a.gest || "").toUpperCase())
         )) return false;
 
+        // ✅ Recherche texte (inchangée)
         if (txt !== "") {
             const matchID   = normalize(e.id).includes(txt);
             const matchArt  = e.articles.some(a => normalize(a.article).includes(txt));
@@ -251,16 +287,6 @@ function applyFilters() {
     currentPage = 0;
 }
 
-/* -----------------------------
-   Listeners filtres
------------------------------ */
-filterText.addEventListener("input", refresh);
-filterA.addEventListener("input", refresh);
-filterT.addEventListener("input", refresh);
-filterN.addEventListener("input", refresh);
-filterPos.addEventListener("input", refresh);
-filterStatus.addEventListener("change", refresh);
-filterGest.addEventListener("change", refresh);
 /* ============================================================
    BLOC 5/10 — Stats latérales + Histogramme + KPI
 ============================================================ */
@@ -276,9 +302,15 @@ function updateIndicators() {
     const totalFiltered = filtered.length;
     const totalQty      = filtered.reduce((s,e)=>s+e.qty,0);
 
+    // ✅ NOUVELLE DÉTECTION DES FILTRES ACTIFS (checkboxes)
     const filtersActive =
-        filterText.value || filterA.value || filterT.value ||
-        filterN.value || filterPos.value || filterStatus.value || filterGest.value;
+    filterText.value ||
+    hasChecked("filterA") ||
+    hasChecked("filterT") ||
+    hasChecked("filterN") ||
+    hasChecked("filterPos") ||
+    hasChecked("filterStatus") ||
+    hasChecked("filterGest");
 
     if (!filtersActive) {
 
@@ -480,80 +512,83 @@ document.getElementById("pageNext").addEventListener("click", () => {
         renderTable();
     }
 });
+
 /* ============================================================
-   BLOC 7/10 — Plan 2D multi‑niveaux
+   BLOC 7/10 — Plan 2D multi-niveaux (CORRIGÉ)
 ============================================================ */
 
-function isLevelOccupied(A, T, N, POS){
+function isLevelOccupied(A, T, N, POS) {
     const found = dataset.find(e =>
         e.A === A && e.T === T && e.N === N && e.POS === POS
     );
     return found ? found.qty > 0 : false;
 }
-
 function drawPlan() {
     if (!ctx) return;
 
-    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
+
     ctx.translate(offsetX, offsetY);
     ctx.scale(zoom, zoom);
 
-    /* === LÉGENDE DES ALLÉES (verticale à gauche du plan) === */
+    const TRAVE_WIDTH  = 120;
+    const POS_WIDTH    = TRAVE_WIDTH / 4;
+    const ALLEE_GAP    = 260;
+    const LEVEL_HEIGHT = 18;
+
+    /* ==========================
+       LÉGENDE CANVAS (À GARDER)
+       ========================== */
+
+    // Travées (horizontal en haut)
     ctx.save();
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 20px sans-serif";
+    ctx.fillStyle = "#000";
+    ctx.font = "bold 36px Arial";          // ✅ PLUS GROS
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+
+    for (let T = 1; T <= 16; T++) {
+        const x = (T - 1) * TRAVE_WIDTH + TRAVE_WIDTH / 2;
+        ctx.fillText(T, x, -20);
+    }
+    ctx.restore();
+
+    // Allées (vertical à gauche)
+    ctx.save();
+    ctx.fillStyle = "#000";
+    ctx.font = "bold 36px Arial";          // ✅ PLUS GROS
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
 
     ALLEES.forEach((A, idxA) => {
         const row = ALLEES.length - idxA - 1;
-        const y = row * 260 + 130;      // Milieu de l’allée
-        ctx.fillText(A, -25, y);        // Position à gauche du plan
+        const y = row * ALLEE_GAP + ALLEE_GAP / 2;
+        ctx.fillText(A, -25, y);
     });
     ctx.restore();
 
-    /* === LÉGENDE DES TRAVÉES (horizontale au-dessus du plan) === */
-    ctx.save();
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 18px sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
-
-    for (let T = 1; T <= 16; T++) {
-        const x = (T - 1) * 120 + 60;   // Centre de la travée
-        ctx.fillText(T, x, -10);        // Position au-dessus du plan
-    }
-    ctx.restore();
-
-
-    /* === DESSIN DU PLAN === */
-    const TRAVE_WIDTH  = 120;
-    const POS_WIDTH    = TRAVE_WIDTH / 4;
-    const ALLEE_GAP    = 260;
-    const LEVEL_HEIGHT = 18;
+    /* ==========================
+       DESSIN DES EMPLACEMENTS
+       ========================== */
 
     const visible = new Set(
         filtered.map(e => `${e.A}-${e.T}-${e.N}-${e.POS}`)
     );
 
     ALLEES.forEach((A, idxA) => {
-
         const row = ALLEES.length - idxA - 1;
 
         for (let T = 1; T <= 16; T++) {
-
             const maxLevel = NIV[A][T];
             const levels = getLevelsUpTo(maxLevel);
 
             levels.forEach((N, idxN) => {
-
                 const baseY =
                     row * ALLEE_GAP +
                     (levels.length - idxN - 1) * LEVEL_HEIGHT;
 
                 for (let POS = 1; POS <= 4; POS++) {
-
                     const key = `${A}-${T}-${N}-${POS}`;
                     if (!visible.has(key)) continue;
 
@@ -561,7 +596,7 @@ function drawPlan() {
                         (T - 1) * TRAVE_WIDTH +
                         (POS - 1) * POS_WIDTH;
 
-                    ctx.fillStyle = isLevelOccupied(A,T,N,POS)
+                    ctx.fillStyle = isLevelOccupied(A, T, N, POS)
                         ? "#2ecc71"
                         : "#e74c3c";
 
@@ -1122,10 +1157,34 @@ function refresh() {
     }
 }
 
-/* -----------------------------
-   Init application
------------------------------ */
+/* ----------------   
+Init application
+------------------ */
 document.addEventListener("DOMContentLoaded", () => {
     setupCanvas();
+    populatePosFilter();
     refresh();
-});
+
+// ✅ DELEGATION : fonctionne pour TOUTES les checkboxes (même dynamiques)
+document
+    .getElementById("toolbarFilters")
+    .addEventListener("change", e => {
+        if (e.target.matches("input[type='checkbox']")) {
+            refresh();
+        }
+    });
+
+       // ouverture via le titre
+    document.addEventListener("click", e => {
+        const title = e.target.closest(".filter-title");
+        const group = e.target.closest(".filter-group");
+
+        if (title && group) {
+            document.querySelectorAll(".filter-group.open")
+                .forEach(g => g !== group && g.classList.remove("open"));
+
+            group.classList.toggle("open");
+        }
+    }, true);
+  });
+
