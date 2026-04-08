@@ -106,9 +106,7 @@ let expeditionsN1 = {}; // { articleCode : totalExpedié }
 let ROTATION_YEARS = 1; // durée détectée du fichier expéditions
 let expeditionsByLabel = {}; // { normalizedLabel: totalSorties }
 
-const tableView     = document.getElementById("tableView");
-const planView      = document.getElementById("planView");
-const dashboardView = document.getElementById("dashboardView");
+
 /* ------------------------------------------------------------
    Utils
 ------------------------------------------------------------ */
@@ -1700,60 +1698,31 @@ if (gestCanvas) {
    Switch Onglets (version saine)
 ----------------------------- */
 
-const btnTable = document.getElementById("btnTable");
-const btnPlan = document.getElementById("btnPlan");
-const btnDashboard = document.getElementById("btnDashboard");
-const btnFamille = document.getElementById("btnFamille");
+const tableView     = document.getElementById("tableView");
+const planView      = document.getElementById("planView");
+const dashboardView = document.getElementById("dashboardView");
+const familleView   = document.getElementById("familleView");
 
-const familleView = document.getElementById("familleView");
+// TABLE
+document.getElementById("btnTable").addEventListener("click", () => {
+    switchTab(tableView);
+});
 
-if (btnTable) {
-    btnTable.addEventListener("click", () => {
-        tableView.classList.add("active");
-        planView.classList.remove("active");
-        dashboardView.classList.remove("active");
-        familleView.classList.remove("active");
-    });
-}
+// PLAN
+document.getElementById("btnPlan").addEventListener("click", () => {
+    switchTab(planView);
+});
 
-if (btnPlan) {
-    btnPlan.addEventListener("click", () => {
-        planView.classList.add("active");
-        tableView.classList.remove("active");
-        dashboardView.classList.remove("active");
-        familleView.classList.remove("active");
+// DASHBOARD
+document.getElementById("btnDashboard").addEventListener("click", () => {
+    switchTab(dashboardView);
+});
 
-        drawPlan();
-        drawMiniMap();
-    });
-}
-
-if (btnDashboard) {
-    btnDashboard.addEventListener("click", () => {
-        dashboardView.classList.add("active");
-        tableView.classList.remove("active");
-        planView.classList.remove("active");
-        familleView.classList.remove("active");
-
-        setTimeout(() => {
-            renderDashboardKPI();
-            renderDashboardCharts();
-            renderTopRotations();
-            renderTopDormantList();
-        }, 50);
-    });
-}
-
-if (btnFamille) {
-    btnFamille.addEventListener("click", () => {
-        familleView.classList.add("active");
-        tableView.classList.remove("active");
-        planView.classList.remove("active");
-        dashboardView.classList.remove("active");
-
-        renderFamilleAnalysis();
-    });
-}
+// FAMILLES
+document.getElementById("btnFamille").addEventListener("click", () => {
+    switchTab(familleView);
+    renderFamilleAnalysis(); // uniquement ici
+});
 
 /* -----------------------------
    Refresh global sécurisé
@@ -1770,6 +1739,56 @@ function refresh() {
 
     if (dashboardView.classList.contains("active")) {
         renderDashboardCharts();
+    }
+}
+
+// ===== Onglets =====
+const btnTable     = document.getElementById("btnTable");
+const btnPlan      = document.getElementById("btnPlan");
+const btnDashboard = document.getElementById("btnDashboard");
+const btnFamille   = document.getElementById("btnFamille");
+
+if (btnTable) {
+    btnTable.addEventListener("click", () => {
+        switchTab(tableView);
+        refresh();
+    });
+}
+
+if (btnPlan) {
+    btnPlan.addEventListener("click", () => {
+        switchTab(planView);
+        drawPlan();
+        drawMiniMap();
+    });
+}
+
+if (btnDashboard) {
+    btnDashboard.addEventListener("click", () => {
+        switchTab(dashboardView);
+
+        // force le rendu dashboard
+        renderDashboardKPI();
+        renderDashboardCharts();
+    });
+}
+
+if (btnFamille) {
+    btnFamille.addEventListener("click", () => {
+        switchTab(familleView);
+        renderFamilleAnalysis();
+    });
+}
+
+function switchTab(viewToShow) {
+    const tabs = document.querySelectorAll(".tab");
+
+    tabs.forEach(tab => {
+        tab.classList.remove("active");
+    });
+
+    if (viewToShow) {
+        viewToShow.classList.add("active");
     }
 }
 

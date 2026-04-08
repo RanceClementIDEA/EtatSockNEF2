@@ -686,56 +686,32 @@ body {
     padding: 4px 8px;
 }
 
-/* ===== FORCE AFFICHAGE TABLE FAMILLE ===== */
-
-#familleView table {
-    display: table;
-    width: 100%;
-    border-collapse: collapse;
-}
-
-#familleView thead {
-    display: table-header-group;
-}
-
-#familleView tbody {
-    display: table-row-group;
-}
-
-#familleView tr {
-    display: table-row;
-}
-
-#familleView td,
-#familleView th {
-    display: table-cell;
-    padding: 6px 8px;
-    border: 1px solid #ddd;
-    text-align: left;
-}
-
-/* ===== FAMILLE VIEW FIX DEFINITIF ===== */
+/* ============================
+   ONGLET FAMILLE – VERSION NORMALE
+   ============================ */
 
 #familleView {
+    position: static;          /* ✅ comme les autres onglets */
+    z-index: auto;
+    background: #ffffff;
+
     padding: 20px;
-    background: #fff;
-    overflow: visible;
+    box-sizing: border-box;
+
+    overflow-x: hidden;
+    overflow-y: auto;
 }
 
-.famille-wrapper {
-    overflow: auto;
-    max-height: calc(100vh - 220px);
-}
-
-.famille-table {
+/* Table famille bien intégrée */
+#familleView table {
     width: 100%;
     border-collapse: collapse;
 }
 
-.famille-table th,
-.famille-table td {
+#familleView th,
+#familleView td {
     padding: 6px 8px;
-    border: 1px solid #ddd;
+    border: 1px solid #e0e0e0;
     white-space: nowrap;
 }
 
@@ -966,4 +942,6 @@ td, th {
     text-overflow: ellipsis;
     overflow: hidden;
 }
+
+
 
