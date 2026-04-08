@@ -275,24 +275,29 @@
     </div>
 </div>
 
-<!-- ✅ FAMILLE AU MÊME NIVEAU -->
-    <section id="familleView" class="tab">
-        <h2>Analyse par famille</h2>
+<section id="familleView" class="tab">
+    <h2>Analyse par famille</h2>
 
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>Famille</th>
-                <th>Articles distincts</th>
-                <th>Stock total</th>
-                <th>Rotation max</th>
-            </tr>
-        </thead>
-        <tbody id="familleTableBody">
-            <!-- rempli en JS -->
-        </tbody>
-    </table>
+    <div class="famille-wrapper">
+        <table class="data-table famille-table">
+            <thead>
+                <tr>
+                    <th>Famille</th>
+                    <th>Articles distincts</th>
+                    <th>Stock total</th>
+                    <th>Rotation moy.</th>
+                    <th>Rotation max</th>
+                    <th>Top article</th>
+                    <th>% dormants</th>
+                    <th>Ratio stock/rot.</th>
+                    <th>Score BI</th>
+                </tr>
+            </thead>
+            <tbody id="familleTableBody"></tbody>
+        </table>
+    </div>
 </section>
+
 
 <!-- ✅ LES LISTES À PART -->
 <div class="dashboard-lists">

@@ -437,7 +437,7 @@ function computeFamilleStats() {
 }
 
 function renderFamilleAnalysis() {
-
+console.log("✅ renderFamilleAnalysis appelée");
     const tbody = document.getElementById("familleTableBody");
     if (!tbody) return;
 
@@ -1785,6 +1785,19 @@ document.addEventListener("DOMContentLoaded", () => {
             renderDashboardCharts();
         });
     }
+
+// ===== Panneau Statistiques =====
+const statsPanel = document.getElementById("sideStats");
+const statsToggle = document.getElementById("statsToggle");
+
+if (statsPanel && statsToggle) {
+    statsToggle.addEventListener("click", () => {
+        console.log("✅ CLICK STATS"); // debug temporaire
+
+        statsPanel.classList.toggle("open");
+        statsPanel.classList.toggle("closed");
+    });
+}
 
     // ===== Initialisation générale =====
     setupCanvas();

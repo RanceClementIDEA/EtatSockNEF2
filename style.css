@@ -223,48 +223,38 @@ body {
     border-top: 1px solid var(--sapSeparator);
 }
 
-/* ============================================================
-   PANEL STATS LATÉRAL
-============================================================ */
+/* ===============================
+   DRAWER STATISTIQUES – CLEAN
+   =============================== */
+
 #sideStats {
     position: fixed;
-    top: 96px;
+    top: 0;
     right: 0;
-    width: 300px;
-    height: calc(100vh - 96px);
-    background: var(--sapCard);
-    border-left: 1px solid var(--sapSeparator);
-    box-shadow: var(--sapShadow);
-    transform: translateX(320px);
-    transition: transform .3s ease;
+
+    width: 260px;
+    height: 100vh;
+
+    background: #ffffff;
+    box-shadow: -4px 0 14px rgba(0,0,0,0.18);
+
     padding: 16px;
-    overflow: hidden;
-    z-index: 2900;
+    box-sizing: border-box;
+
+    overflow-y: auto;
+
+    z-index: 5000;
+
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
 }
 
 #sideStats.open {
     transform: translateX(0);
 }
 
-#statsToggle {
-    position: fixed;
-    top: 70px;
-    right: 0;
-
-    z-index: 3000;      /* ✅ AU‑DESSUS DE TOUT */
-    pointer-events: auto;
-
-    width: 36px;
-    height: 48px;
-    background: var(--sapPrimary);
-    color: white;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    border-radius: 6px 0 0 6px;
-    cursor: pointer;
+#sideStats.closed {
+    transform: translateX(100%);
 }
 
 /* ============================================================
@@ -695,3 +685,285 @@ body {
 .dashboard-mode select {
     padding: 4px 8px;
 }
+
+/* ===== FORCE AFFICHAGE TABLE FAMILLE ===== */
+
+#familleView table {
+    display: table;
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#familleView thead {
+    display: table-header-group;
+}
+
+#familleView tbody {
+    display: table-row-group;
+}
+
+#familleView tr {
+    display: table-row;
+}
+
+#familleView td,
+#familleView th {
+    display: table-cell;
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    text-align: left;
+}
+
+/* ===== FAMILLE VIEW FIX DEFINITIF ===== */
+
+#familleView {
+    padding: 20px;
+    background: #fff;
+    overflow: visible;
+}
+
+.famille-wrapper {
+    overflow: auto;
+    max-height: calc(100vh - 220px);
+}
+
+.famille-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.famille-table th,
+.famille-table td {
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    white-space: nowrap;
+}
+
+/* =========================================================
+   STATISTIQUES – DRAWER + BOUTON + GRAPHIQUES (VERSION CLEAN)
+   Remplace entièrement l'ancien CSS des stats
+   ========================================================= */
+
+/* ---------- Anti scroll horizontal global ---------- */
+html, body {
+    overflow-x: hidden;
+}
+
+/* ---------- DRAWER STATISTIQUES ---------- */
+#sideStats {
+    position: fixed;
+    top: 0;
+    right: 0;
+
+    width: 340px;
+    height: 100vh;
+
+    background: #ffffff;
+    box-shadow: -4px 0 14px rgba(0,0,0,0.18);
+
+    padding: 16px;
+    box-sizing: border-box;
+
+    overflow-y: auto;     /* ✅ scroll vertical */
+    overflow-x: hidden;   /* ❌ jamais horizontal */
+
+    z-index: 5000;
+
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+}
+
+#sideStats.open {
+    transform: translateX(0);
+}
+
+#sideStats.closed {
+    transform: translateX(100%);
+}
+
+/* ---------- TITRES ---------- */
+#sideStats h2 {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0 0 14px 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+#sideStats h3 {
+    margin: 18px 0 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+}
+
+/* ---------- CARTES KPI ---------- */
+.statItem {
+    position: relative;
+
+    background: #f6f8fb;
+    border: 1px solid #e2e6ea;
+    border-radius: 10px;
+
+    padding: 10px 12px;
+    margin-bottom: 10px;
+
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.statItem::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 4px;
+    height: 100%;
+    background: #0a6ed1;
+    border-radius: 10px 0 0 10px;
+}
+
+.statItem span {
+    font-size: 12px;
+    color: #555;
+}
+
+.statItem strong {
+    font-size: 15px;
+    font-weight: 700;
+    color: #0a6ed1;
+}
+
+.statItem.statSub {
+    background: #eef2f6;
+}
+
+/* ---------- GRAPHIQUES ---------- */
+/* =========================================================
+   GRAPHIQUE STATUT – HAUTEUR ADAPTÉE (4 BARRES)
+   ========================================================= */
+
+/* =========================================================
+   GRAPHIQUE STATUT – VERSION BI ÉQUILIBRÉE
+   ========================================================= */
+
+#sideStats canvas {
+    display: block;
+
+    width: 100% !important;
+    max-width: 100%;
+
+    height: 140px !important;   /* ✅ hauteur NORMALE */
+    min-height: 140px;
+
+    background: #ffffff;
+    border-radius: 8px;
+
+    padding: 4px;
+    box-sizing: border-box;
+}
+
+/* Séparation visuelle avant le graphique */
+#sideStats h3 {
+    margin-top: 20px;
+    margin-bottom: 10px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+/* Protection anti débordement */
+#sideStats * {
+    min-width: 0;
+    max-width: 100%;
+}
+/* ---------- BOUTON STATISTIQUES (PILULE PRO) ---------- */
+#statsToggle {
+    position: fixed;
+    top: 50px;                  /* ✅ position demandée */
+    right: -6px;                /* effet poignée */
+
+    height: 34px;
+    padding: 0 14px 0 12px;
+
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+
+    background: linear-gradient(
+        180deg,
+        #0a6ed1 0%,
+        #0854a0 100%
+    );
+
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+
+    border-radius: 17px 0 0 17px;
+    box-shadow:
+        -3px 0 8px rgba(0,0,0,0.25),
+        inset 0 1px 0 rgba(255,255,255,0.3);
+
+    cursor: pointer;
+    user-select: none;
+
+    z-index: 5100;
+}
+
+#statsToggle .sapIcon {
+    font-size: 14px;
+    line-height: 1;
+}
+
+#statsToggle:hover {
+    background: linear-gradient(
+        180deg,
+        #0b74de 0%,
+        #0960b5 100%
+    );
+}
+
+/* =========================================================
+   TABLES / CARTES – PROTECTION
+   ========================================================= */
+
+table {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+/* Si une table est trop large, elle scrolle en vertical seulement */
+table, thead, tbody, tr, td, th {
+    box-sizing: border-box;
+}
+
+/* Texte long : pas de débordement */
+td, th {
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+/* =========================================================
+   TABLES / CARTES – PROTECTION
+   ========================================================= */
+
+table {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+/* Si une table est trop large, elle scrolle en vertical seulement */
+table, thead, tbody, tr, td, th {
+    box-sizing: border-box;
+}
+
+/* Texte long : pas de débordement */
+td, th {
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
