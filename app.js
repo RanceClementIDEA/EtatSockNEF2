@@ -5,6 +5,81 @@
 
 const ALLEES = ["A","B","C","D","E","F","G","H","I","J","K","L","M","N"];
 
+const FAMILLES = {
+    EL: "Électricité / Éclairage / Détection",
+    RO: "Robinetterie",
+    TA: "Tuyauterie & accessoires",
+    EP: "Équipements process",
+    IN: "Instrumentation",
+    AC: "Accessoires / manutention",
+    HV: "HVAC / ventilation",
+    SE: "Supports / structures",
+    CO: "Colliers / consommables",
+    GA: "Gaines & réseaux",
+    CS: "Consommables chantier",
+    PE: "Protection",
+    OU: "Outillage",
+    EM: "Mécanique",
+    CL: "Contrôle",
+    GN: "Génie civil"
+};
+
+const BI_THRESHOLDS = {
+    rotationAvg: {
+        green: 1.0,
+        orange: 0.3
+    },
+    dormantRate: {
+        green: 0.3,
+        orange: 0.6
+    },
+    stockRotationRatio: {
+        green: 1000,
+        orange: 3000
+    }
+};
+
+function getBIColor(value, thresholds, invert = false) {
+    // invert = true pour % dormants (plus c’est haut, plus c’est mauvais)
+    if (!invert) {
+        if (value >= thresholds.green) return "bi-green";
+        if (value >= thresholds.orange) return "bi-orange";
+        return "bi-red";
+    } else {
+        if (value <= thresholds.green) return "bi-green";
+        if (value <= thresholds.orange) return "bi-orange";
+        return "bi-red";
+    }
+}
+
+function computeBIScore({
+    rotationAvg,
+    dormantRate,
+    stockRotationRatio,
+    articleCount
+}) {
+
+    let score = 0;
+
+    // 🔹 Rotation moyenne (40 pts)
+    if (rotationAvg >= 1) score += 40;
+    else if (rotationAvg >= 0.3) score += 20;
+
+    // 🔹 % articles dormants (30 pts)
+    if (dormantRate <= 0.3) score += 30;
+    else if (dormantRate <= 0.6) score += 15;
+
+    // 🔹 Ratio stock / rotation (20 pts)
+    if (stockRotationRatio <= 1000) score += 20;
+    else if (stockRotationRatio <= 3000) score += 10;
+
+    // 🔹 Complexité (10 pts)
+    if (articleCount <= 20) score += 10;
+    else if (articleCount <= 60) score += 5;
+
+    return score;
+}
+
 let raw = [];
 let dataset = [];
 let filtered = [];
@@ -272,6 +347,173 @@ function computeTopRotations(limit = 5) {
         .slice(0, limit);
 }
 
+function getFamilleFromGest(gest) {
+    if (!gest) return "Non classée";
+    const prefix = gest.substring(0, 2).toUpperCase();
+    return FAMILLES[prefix] || "Autre";
+}
+
+function computeFamilleStats() {
+
+    const stats = {};
+
+    dataset.forEach(e => {
+        e.articles.forEach(a => {
+
+            const fam = a.famille || "Non classée";
+
+            if (!stats[fam]) {
+                stats[fam] = {
+                    famille: fam,
+                    stockTotal: 0,
+                    articles: new Set(),
+                    rotations: [],
+                    rotationMax: 0,
+                    topArticleLabel: ""
+                };
+            }
+
+            // 🔹 stock
+            stats[fam].stockTotal += a.qty;
+            stats[fam].articles.add(a.article);
+
+            // 🔹 rotation article
+            const rotObj = computeRotationRate(a.article, a.lib);
+            const rot = rotObj.value || 0;
+
+            stats[fam].rotations.push(rot);
+
+            // 🔹 rotation max + article associé
+            if (rot > stats[fam].rotationMax) {
+                stats[fam].rotationMax = rot;
+                stats[fam].topArticleLabel =
+                    `${a.article} – ${a.lib}`;
+            }
+        });
+    });
+
+    // 🔹 calcul BI par famille
+    return Object.values(stats).map(f => {
+
+        const articleCount = f.articles.size;
+
+        const rotationAvg =
+            f.rotations.length
+                ? f.rotations.reduce((s, r) => s + r, 0) / f.rotations.length
+                : 0;
+
+        const dormantCount =
+            f.rotations.filter(r => r < 0.2).length;
+
+        const dormantRate =
+            f.rotations.length
+                ? dormantCount / f.rotations.length
+                : 0;
+
+        const stockRotationRatio =
+            rotationAvg > 0
+                ? f.stockTotal / rotationAvg
+                : Infinity;
+
+        const biScore = computeBIScore({
+            rotationAvg,
+            dormantRate,
+            stockRotationRatio,
+            articleCount
+        });
+
+        return {
+            famille: f.famille,
+            articlesDistincts: articleCount,
+            stockTotal: f.stockTotal,
+            rotationAvg: rotationAvg.toFixed(2),
+            rotationMax: f.rotationMax.toFixed(2),
+            dormantRate: (dormantRate * 100).toFixed(0),
+            stockRotationRatio: Math.round(stockRotationRatio),
+            topArticleLabel: f.topArticleLabel,
+            biScore
+        };
+    });
+}
+
+function renderFamilleAnalysis() {
+
+    const tbody = document.getElementById("familleTableBody");
+    if (!tbody) return;
+
+    // ✅ tri BI : familles les plus problématiques en haut
+    const rows = computeFamilleStats()
+        .sort((a, b) => a.biScore - b.biScore);
+
+    tbody.innerHTML = "";
+
+    rows.forEach(f => {
+
+        const tr = document.createElement("tr");
+
+        // ✅ choix de la couleur du score BI
+        const scoreClass =
+            f.biScore >= 75 ? "bi-green" :
+            f.biScore >= 50 ? "bi-orange" :
+                              "bi-red";
+
+        tr.innerHTML = `
+<td>${f.famille}</td>
+
+<td>${f.articlesDistincts}</td>
+
+<td>${f.stockTotal}</td>
+
+<td>
+  <span class="bi-badge ${getBIColor(
+      f.rotationAvg,
+      BI_THRESHOLDS.rotationAvg
+  )}"
+  title="Rotation moyenne annuelle de la famille">
+    ${f.rotationAvg}
+  </span>
+</td>
+
+<td>${f.rotationMax}</td>
+
+<td title="${f.topArticleLabel}">
+  ${f.topArticleLabel.split("–")[0]}
+</td>
+
+<td>
+  <span class="bi-badge ${getBIColor(
+      f.dormantRate / 100,
+      BI_THRESHOLDS.dormantRate,
+      true
+  )}"
+  title="Pourcentage d’articles de la famille à faible ou aucune rotation">
+    ${f.dormantRate} %
+  </span>
+</td>
+
+<td>
+  <span class="bi-badge ${getBIColor(
+      f.stockRotationRatio,
+      BI_THRESHOLDS.stockRotationRatio,
+      true
+  )}"
+  title="Stock total de la famille divisé par sa rotation moyenne">
+    ${f.stockRotationRatio}
+  </span>
+</td>
+
+<td>
+  <strong class="bi-score ${scoreClass}"
+          title="Score BI global (santé de la famille)">
+    ${f.biScore}
+  </strong>
+</td>
+`;
+
+        tbody.appendChild(tr);
+    });
+}
+
 /* ============================================================
    BLOC 2/10 — Import XLSX
 ============================================================ */
@@ -401,11 +643,12 @@ function buildDataset(){
         if (isNaN(q)) q = 0;
 
         map[key].articles.push({
-            article: String(row["Article"] || "").trim(),
-            lib:     row["Libellé"] || "",
-            gest:    (row["Gest."] || "").trim(),
-            qty:     q
-        });
+    article: String(row["Article"] || "").trim(),
+    lib: row["Libellé"] || "",
+    gest: (row["Gest."] || "").trim(),
+    famille: getFamilleFromGest(row["Gest."]),
+    qty: q
+});
     });
 
     // Emplacements vides générés depuis NIV
@@ -446,6 +689,7 @@ function buildDataset(){
     });
 
     populateGestSelect();
+    populateFamilleFilter();
     refresh();
 }
 /* ============================================================
@@ -470,7 +714,33 @@ function populateGestSelect() {
         content.appendChild(label);
     });
 }
+function populateFamilleFilter() {
 
+    const group = document.getElementById("filterFamille");
+    if (!group) return;
+
+    const content = group.querySelector(".filter-content");
+    if (!content) return;
+
+    content.innerHTML = "";
+
+    const famillesUniques = [
+        ...new Set(
+            dataset.flatMap(e =>
+                e.articles.map(a => a.famille).filter(Boolean)
+            )
+        )
+    ].sort();
+
+    famillesUniques.forEach(f => {
+        const label = document.createElement("label");
+        label.innerHTML = `
+            <input type="checkbox" value="${f}">
+            ${f}
+        `;
+        content.appendChild(label);
+    });
+}
 function populatePosFilter() {
     const group = document.getElementById("filterPos");
     if (!group) return;
@@ -515,6 +785,7 @@ function applyFilters() {
     const FP = getCheckedValues("filterPos").map(v => parseInt(v));
     const FS = getCheckedValues("filterStatus");
     const FG = getCheckedValues("filterGest").map(v => v.toUpperCase());
+    const FF = getCheckedValues("filterFamille");
 
     filtered = dataset.filter(e => {
 
@@ -527,6 +798,10 @@ function applyFilters() {
         if (FG.length && !e.articles.some(a =>
             FG.includes((a.gest || "").toUpperCase())
         )) return false;
+
+       if (FF.length && !e.articles.some(a =>
+       FF.includes(a.famille)
+       )) return false;
 
         // ✅ Recherche texte (inchangée)
         if (txt !== "") {
@@ -765,6 +1040,9 @@ function renderTable() {
                     <div class="article-meta">
                         Qté : ${a.qty}
                     </div>
+<div class="article-meta">
+    Famille : ${a.famille}
+</div>
                 </div>
             `;
         }).join("")}
@@ -1214,7 +1492,8 @@ function renderDashboardCharts() {
     const statusCanvas = document.getElementById("chartStatus");
     const alleeCanvas  = document.getElementById("chartAllee");
     const top10Canvas  = document.getElementById("chartTop10");
-    const mode = dashboardMode ? dashboardMode.value : "locations";
+    const dashboardModeEl = document.getElementById("dashboardMode");
+const mode = dashboardModeEl ? dashboardModeEl.value : "locations";
     if (!statusCanvas || !alleeCanvas || !top10Canvas) return;
 
 /* --- 1) Répartition des statuts --- */
@@ -1266,6 +1545,28 @@ if (mode === "locations") {
             }
         }
     });
+
+function renderFamilleAnalysis() {
+
+    const tbody = document.getElementById("familleTableBody");
+    if (!tbody) return;
+
+    const rows = computeFamilleStats()
+        .sort((a, b) => b.rotationMax - a.rotationMax);
+
+    tbody.innerHTML = "";
+
+    rows.forEach(f => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td>${f.famille}</td>
+            <td>${f.articlesDistincts}</td>
+            <td>${f.stockTotal}</td>
+            <td>${f.rotationMax}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
 
     /* --- 2) Stock par allée --- */
     const byAllee = {};
@@ -1396,65 +1697,63 @@ if (gestCanvas) {
 }
 }
 /* -----------------------------
-   Sélecteur type graphique
+   Switch Onglets (version saine)
 ----------------------------- */
-const chartTypeSelect = document.getElementById("chartTypeSelect");
-const dashboardMode = document.getElementById("dashboardMode");
-if (dashboardMode) {
-    dashboardMode.addEventListener("change", () => {
-        renderDashboardCharts();
+
+const btnTable = document.getElementById("btnTable");
+const btnPlan = document.getElementById("btnPlan");
+const btnDashboard = document.getElementById("btnDashboard");
+const btnFamille = document.getElementById("btnFamille");
+
+const familleView = document.getElementById("familleView");
+
+if (btnTable) {
+    btnTable.addEventListener("click", () => {
+        tableView.classList.add("active");
+        planView.classList.remove("active");
+        dashboardView.classList.remove("active");
+        familleView.classList.remove("active");
     });
 }
-if (chartTypeSelect) {
-    chartTypeSelect.addEventListener("change", e => {
-        currentChartType = e.target.value;
-        renderDashboardCharts();
+
+if (btnPlan) {
+    btnPlan.addEventListener("click", () => {
+        planView.classList.add("active");
+        tableView.classList.remove("active");
+        dashboardView.classList.remove("active");
+        familleView.classList.remove("active");
+
+        drawPlan();
+        drawMiniMap();
     });
 }
 
+if (btnDashboard) {
+    btnDashboard.addEventListener("click", () => {
+        dashboardView.classList.add("active");
+        tableView.classList.remove("active");
+        planView.classList.remove("active");
+        familleView.classList.remove("active");
 
-/* -----------------------------
-   Switch Onglets
------------------------------ */
+        setTimeout(() => {
+            renderDashboardKPI();
+            renderDashboardCharts();
+            renderTopRotations();
+            renderTopDormantList();
+        }, 50);
+    });
+}
 
-document.getElementById("btnTable").addEventListener("click", () => {
-    tableView.classList.add("active");
-    planView.classList.remove("active");
-    dashboardView.classList.remove("active");
-});
+if (btnFamille) {
+    btnFamille.addEventListener("click", () => {
+        familleView.classList.add("active");
+        tableView.classList.remove("active");
+        planView.classList.remove("active");
+        dashboardView.classList.remove("active");
 
-document.getElementById("btnPlan").addEventListener("click", () => {
-    planView.classList.add("active");
-    tableView.classList.remove("active");
-    dashboardView.classList.remove("active");
-    drawPlan();
-    drawMiniMap();
-});
-
-document.getElementById("btnDashboard").addEventListener("click", () => {
-    tableView.classList.remove("active");
-    planView.classList.remove("active");
-    dashboardView.classList.add("active");
-
-    // attendre affichage réel avant Chart.js
-    setTimeout(() => {
-        renderDashboardKPI();
-        renderDashboardCharts();
-        renderTopRotations();
-        renderTopDormantList()
-    }, 50);
-});
-
-/* -----------------------------
-   Panneau stats (drawer)
------------------------------ */
-const statsPanel  = document.getElementById("sideStats");
-const statsToggle = document.getElementById("statsToggle");
-
-statsToggle.addEventListener("click", () => {
-    statsPanel.classList.toggle("open");
-    statsPanel.classList.toggle("closed");
-});
+        renderFamilleAnalysis();
+    });
+}
 
 /* -----------------------------
    Refresh global sécurisé
@@ -1474,29 +1773,42 @@ function refresh() {
     }
 }
 
-/* ----------------   
+/* ----------------
 Init application
 ------------------ */
 document.addEventListener("DOMContentLoaded", () => {
+
+    // ===== Sélecteur Dashboard Mode =====
+    const dashboardModeEl = document.getElementById("dashboardMode");
+    if (dashboardModeEl) {
+        dashboardModeEl.addEventListener("change", () => {
+            renderDashboardCharts();
+        });
+    }
+
+    // ===== Initialisation générale =====
     setupCanvas();
     populatePosFilter();
     refresh();
 
-// ✅ DELEGATION : fonctionne pour TOUTES les checkboxes (même dynamiques)
-document
-    .getElementById("toolbarFilters")
-    .addEventListener("change", e => {
-        if (e.target.matches("input[type='checkbox']")) {
+    // ===== Filtres à cocher =====
+    const toolbarFilters = document.getElementById("toolbarFilters");
+    if (toolbarFilters) {
+        toolbarFilters.addEventListener("change", e => {
+            if (e.target.matches("input[type='checkbox']")) {
+                refresh();
+            }
+        });
+    }
+
+    // ===== Recherche texte =====
+    if (filterText) {
+        filterText.addEventListener("input", () => {
             refresh();
-        }
-    });
-// ✅ Recherche texte : filtre à la saisie
-if (filterText) {
-    filterText.addEventListener("input", () => {
-        refresh();
-    });
-}
-       // ouverture via le titre
+        });
+    }
+
+    // ===== Ouverture / fermeture des groupes de filtres =====
     document.addEventListener("click", e => {
         const title = e.target.closest(".filter-title");
         const group = e.target.closest(".filter-group");
@@ -1508,5 +1820,6 @@ if (filterText) {
             group.classList.toggle("open");
         }
     }, true);
-  });
+
+});
 

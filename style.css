@@ -327,9 +327,14 @@ body {
 /* ============================================================
    Tabs
 ============================================================ */
-.tab { display: none; }
-.tab.active { display: block; }
+.tab {
+    display: none;
+    width: 100%;
+}
 
+.tab.active {
+    display: block;
+}
 /* ============================================================
    TOOLBAR — actions principales (ligne Fiori)
 ============================================================ */
@@ -629,4 +634,64 @@ body {
     border-radius: 6px;
     padding: 12px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+}
+
+.data-table th {
+    background: #f5f5f5;
+}
+
+.bi-badge {
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-weight: bold;
+    font-size: 12px;
+    color: #fff;
+    white-space: nowrap;
+}
+
+.bi-score {
+    font-size: 14px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.bi-green  { background-color: #2e7d32; }
+.bi-orange { background-color: #f9a825; }
+.bi-red    { background-color: #c62828; }
+
+#toolbar {
+    position: relative;
+    z-index: 10;
+}
+
+#toolbarFilters {
+    position: relative;
+    z-index: 1;
+}
+
+.fioriTab {
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+.dashboard-mode {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.dashboard-mode select {
+    padding: 4px 8px;
 }

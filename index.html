@@ -54,6 +54,11 @@
         <span class="sapIcon"></span> Dashboard
     </button>
 
+<button id="btnFamille" class="fioriTab">
+    <span class="sapIcon"></span> Familles
+</button>
+
+
 </div>
 
 <!-- ============================ TOOLBAR FILTERS ============================ -->
@@ -149,6 +154,10 @@
             <!-- Rempli dynamiquement en JS -->
         </div>
     </div>
+<div class="filter-group" id="filterFamille">
+    <div class="filter-title">Famille</div>
+    <div class="filter-content"></div>
+</div>
 
 </div>
 
@@ -235,6 +244,15 @@
     <section id="dashboardView" class="tab">
         <h2>Dashboard – KPI & Graphiques</h2>
 
+<!-- ===== DASHBOARD MODE ===== -->
+<div class="dashboard-mode">
+    <label for="dashboardMode">Mode d’analyse :</label>
+    <select id="dashboardMode">
+        <option value="locations">Par emplacements</option>
+        <option value="articles">Par articles</option>
+    </select>
+</div>
+
         <div class="dashboard-charts">
     <div class="chart-card">
         <h3>Répartition des statuts</h3>
@@ -256,6 +274,25 @@
         <canvas id="chartGest" height="180"></canvas>
     </div>
 </div>
+
+<!-- ✅ FAMILLE AU MÊME NIVEAU -->
+    <section id="familleView" class="tab">
+        <h2>Analyse par famille</h2>
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Famille</th>
+                <th>Articles distincts</th>
+                <th>Stock total</th>
+                <th>Rotation max</th>
+            </tr>
+        </thead>
+        <tbody id="familleTableBody">
+            <!-- rempli en JS -->
+        </tbody>
+    </table>
+</section>
 
 <!-- ✅ LES LISTES À PART -->
 <div class="dashboard-lists">
