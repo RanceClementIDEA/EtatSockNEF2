@@ -453,3 +453,180 @@ body {
 #plan2d {
     display: block;
 }
+
+.rotation-cell {
+    font-weight: 600;
+}
+
+/* ===== Carte article ===== */
+
+.article-item {
+    background: #ffffff;
+    border: 1px solid var(--sapBorder);
+    border-radius: 6px;
+    padding: 8px;
+    margin-bottom: 6px;
+    font-size: 12px;
+}
+
+/* Ligne haute : article + rotation */
+.article-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.article-code {
+    font-weight: 600;
+    color: var(--sapPrimary);
+}
+
+/* ===== Badge rotation (carré à droite) ===== */
+
+.rotation-badge {
+    min-width: 42px;
+    height: 24px;
+    border-radius: 4px;
+    text-align: center;
+    font-weight: 700;
+    font-size: 11px;
+    line-height: 24px;
+    color: #fff;
+}
+
+/* codes couleur rotation */
+.rotation-none {
+    background: #9e9e9e;
+}
+
+.rotation-low {
+    background: #fb8c00;
+}
+
+.rotation-medium {
+    background: #fbc02d;
+    color: #333;
+}
+
+.rotation-high {
+    background: #43a047;
+}
+
+/* ===========================
+   Tooltip rotation
+=========================== */
+
+.rotation-badge {
+    position: relative;
+    cursor: help;
+}
+
+/* Tooltip caché */
+.rotation-badge::after {
+    content: attr(data-tooltip);
+    position: absolute;
+
+    bottom: 115%;
+    right: 0;
+
+    background: #2a2d34;
+    color: #fff;
+
+    padding: 6px 8px;
+    border-radius: 6px;
+
+    font-size: 11px;
+    line-height: 1.2;
+    white-space: pre-line;
+
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(4px);
+    transition: opacity .15s ease, transform .15s ease;
+
+    z-index: 4000;
+}
+
+/* Petite flèche */
+.rotation-badge::before {
+    content: "";
+    position: absolute;
+
+    bottom: 105%;
+    right: 10px;
+
+    border-width: 6px;
+    border-style: solid;
+    border-color: #2a2d34 transparent transparent transparent;
+
+    opacity: 0;
+    transition: opacity .15s ease;
+
+    z-index: 4000;
+}
+
+/* Affichage au survol */
+.rotation-badge:hover::after,
+.rotation-badge:hover::before {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.topRotationList {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.topRotationList li {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 4px;
+    border-bottom: 1px solid #ddd;
+    font-size: 13px;
+}
+
+.topRotationList li .ref {
+    font-weight: 600;
+}
+
+.topRotationList li .rot {
+    font-weight: 700;
+}
+
+.topRotationList {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.topRotationList li {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 4px;
+    border-bottom: 1px solid #ddd;
+    font-size: 13px;
+}
+
+.topRotationList .ref {
+    font-weight: 600;
+}
+
+.topRotationList .rot {
+    font-weight: 700;
+    color: #c62828; /* rouge = dormant */
+}
+
+.dashboard-lists {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 20px;
+}
+
+.dashboardCard {
+    background: #fff;
+    border-radius: 6px;
+    padding: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}

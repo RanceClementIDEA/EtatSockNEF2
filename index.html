@@ -33,6 +33,11 @@
         <input type="file" id="fileInput" hidden accept=".xlsx">
     </label>
 
+<label class="fioriBtn">
+    Import expéditions N‑1
+    <input type="file" id="expeditionsInput" hidden accept=".xlsx">
+</label>
+
     <!-- Recherche texte -->
     <input id="filterText" type="text" placeholder="Recherche…">
 
@@ -153,11 +158,23 @@
         <span class="sapIcon"></span>
         <h2>Statistiques</h2>
     </div>
+  
+<div class="statItem">
+    <span>Taux remplissage (global)</span>
+    <strong id="sideFillRate">0%</strong>
+</div>
 
-    <div class="statItem">
-        <span>Taux de remplissage</span>
-        <strong id="sideFillRate">0%</strong>
-    </div>
+<div class="statItem">
+    <span>Taux remplissage (sur occupés)</span>
+    <strong id="sideFillRateOccupied">0%</strong>
+</div>
+
+<div class="statItem statSub">
+    <span>Base rotation</span>
+    <strong id="rotationInfo">
+        Rotation calculée sur 1 an
+    </strong>
+</div>
 
     <div class="statItem">
         <span>Emplacements filtrés</span>
@@ -168,6 +185,7 @@
         <span>Stock total filtré</span>
         <strong id="sideQty">0</strong>
     </div>
+
 
     <h3>Status</h3>
     <canvas id="statusChart"></canvas>
@@ -217,49 +235,44 @@
     <section id="dashboardView" class="tab">
         <h2>Dashboard – KPI & Graphiques</h2>
 
-        <div class="dashboard-toolbar">
-            <label>Type de graphique :</label>
-            <select id="chartTypeSelect">
-                <option value="bar">Barres</option>
-                <option value="pie">Camembert</option>
-                <option value="doughnut">Donut</option>
-                <option value="line">Ligne</option>
-                <option value="radar">Radar</option>
-            </select>
-        </div>
-<div class="dashboard-mode">
-    <label>Mode d’analyse :</label>
-    <select id="dashboardMode">
-        <option value="locations">Par emplacements</option>
-        <option value="articles">Par articles</option>
-    </select>
-</div>
-        <div id="kpiDashboard"></div>
-
         <div class="dashboard-charts">
-            <div class="chart-card">
-                <h3>Répartition des statuts</h3>
-                <canvas id="chartStatus"></canvas>
-            </div>
+    <div class="chart-card">
+        <h3>Répartition des statuts</h3>
+        <canvas id="chartStatus"></canvas>
+    </div>
 
-            <div class="chart-card">
-                <h3>Stock par allée</h3>
-                <canvas id="chartAllee"></canvas>
-            </div>
+    <div class="chart-card">
+        <h3>Stock par allée</h3>
+        <canvas id="chartAllee"></canvas>
+    </div>
 
-            <div class="chart-card">
-                <h3>Top 10 articles</h3>
-                <canvas id="chartTop10"></canvas>
-            </div>
-<div class="chart-card">
-    <h3>Top 5 gestionnaires</h3>
-    <canvas id="chartGest" height="180"></canvas>
+    <div class="chart-card">
+        <h3>Top 10 articles</h3>
+        <canvas id="chartTop10"></canvas>
+    </div>
+
+    <div class="chart-card">
+        <h3>Top 5 gestionnaires</h3>
+        <canvas id="chartGest" height="180"></canvas>
+    </div>
 </div>
-        </div>
+
+<!-- ✅ LES LISTES À PART -->
+<div class="dashboard-lists">
+    <div class="dashboardCard">
+        <h3>Top 5 rotations</h3>
+        <ul id="topRotationList" class="topRotationList"></ul>
+    </div>
+
+    <div class="dashboardCard">
+        <h3>Top 5 articles dormants</h3>
+        <ul id="topDormantList" class="topRotationList"></ul>
+    </div>
+</div>
+
     </section>
 
 </main>
 
 </body>
 </html>
-``

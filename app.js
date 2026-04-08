@@ -26,20 +26,31 @@ let dragging = false;
 let dragStartX = 0;
 let dragStartY = 0;
 
+// ================= ROTATION ARTICLES (N-1) =================
+let expeditionsN1 = {}; // { articleCode : totalExpedié }
+let ROTATION_YEARS = 1; // durée détectée du fichier expéditions
+let expeditionsByLabel = {}; // { normalizedLabel: totalSorties }
+
 const tableView     = document.getElementById("tableView");
 const planView      = document.getElementById("planView");
 const dashboardView = document.getElementById("dashboardView");
 /* ------------------------------------------------------------
    Utils
 ------------------------------------------------------------ */
-function normalize(str){
-    if (typeof str !== "string") str = String(str || "");
-    return str
+function normalizeLabel(value) {
+    return String(value ?? "")
         .toLowerCase()
         .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g,"")
-        .replace(/[^a-z0-9]/g,"");
+        .replace(/[\u0300-\u036f]/g, "") // accents
+        .replace(/[^a-z0-9]/g, "")       // ⬅ IMPORTANT : pas d'espaces
+        .trim();
 }
+
+// ✅ Alias pour compatibilité avec applyFilters()
+function normalize(v) {
+    return normalizeLabel(v);
+}
+
 function getCheckedValues(containerId) {
     const container = document.getElementById(containerId);
     if (!container) return [];
@@ -54,6 +65,211 @@ function hasChecked(containerId) {
     return container.querySelectorAll(
         'input[type="checkbox"]:checked'
     ).length > 0;
+}
+
+function buildFluxMap(rows) {
+
+    const byRef = {};
+    expeditionsByLabel = {};
+
+    rows.forEach(r => {
+
+        const ref = String(r["Article"] || "").trim();
+        const lib = normalizeLabel(r["Libellé"] || "");
+
+        if (ref) {
+            byRef[ref] = (byRef[ref] || 0) + 1;
+        }
+
+        if (lib) {
+            expeditionsByLabel[lib] =
+                (expeditionsByLabel[lib] || 0) + 1;
+        }
+    });
+
+    return byRef;
+}
+
+function computeRotationRate(articleCode, label) {
+
+    let sorties = expeditionsN1[articleCode];
+    let usedFallback = false;
+
+    // ✅ fallback par intitulé
+    if (sorties === undefined && label) {
+        const key = normalizeLabel(label);
+        if (expeditionsByLabel[key] !== undefined) {
+            sorties = expeditionsByLabel[key];
+            usedFallback = true;
+        }
+    }
+
+    sorties = sorties || 0;
+
+    const stock = dataset.reduce((sum, e) =>
+        sum + e.articles
+            .filter(a => a.article === articleCode)
+            .reduce((s,a) => s + a.qty, 0)
+    , 0);
+
+    if (!stock) {
+        return {
+            value: 0,
+            tooltip: "Aucune rotation détectée"
+        };
+    }
+
+    const rotation = +((sorties / stock) / ROTATION_YEARS).toFixed(2);
+
+    // ✅ tooltip construit ICI
+    let tooltip =
+        `Rotation moyenne : ${rotation} par an\n` +
+        `Calculée sur 4 ans`;
+
+    if (usedFallback) {
+        tooltip += `\n⚠️ Correspondance par intitulé`;
+    }
+
+    return {
+        value: rotation,
+        tooltip
+    };
+}
+
+function computeTopDormantArticles(limit = 5) {
+
+    const map = new Map();
+
+    dataset.forEach(e => {
+        e.articles.forEach(a => {
+
+            const key = a.article;
+            if (map.has(key)) return; // éviter doublons
+
+            const rot = computeRotationRate(a.article, a.lib);
+
+            // ✅ EXCLURE :
+            // - pas de donnée
+            // - rotation 0 (pas de flux du tout)
+            if (!rot || rot.value <= 0) return;
+
+            map.set(key, {
+                article: a.article,
+                lib: a.lib,
+                rotation: rot.value,
+                tooltip: rot.tooltip
+            });
+        });
+    });
+
+    // ✅ tri : les plus faibles rotations d'abord
+    return Array.from(map.values())
+        .sort((a, b) => a.rotation - b.rotation)
+        .slice(0, limit);
+}
+
+function renderTopDormantList() {
+
+    const ul = document.getElementById("topDormantList");
+    if (!ul) return;
+
+    ul.innerHTML = "";
+
+    const top = computeTopDormantArticles(5);
+
+    if (top.length === 0) {
+        ul.innerHTML = "<li>Aucun article dormant détecté</li>";
+        return;
+    }
+
+    top.forEach((item, i) => {
+        const li = document.createElement("li");
+
+        li.innerHTML = `
+            <span class="ref">
+                ${i + 1}. ${item.article}
+            </span>
+            <span class="rot" title="${item.tooltip}">
+                ${item.rotation.toFixed(2)} /an
+            </span>
+        `;
+
+        ul.appendChild(li);
+    });
+}
+
+function rotationClass(rate) {
+    if (rate === 0) return "rotation-none";
+    if (rate < 1)  return "rotation-low";
+    if (rate < 5)  return "rotation-medium";
+    return "rotation-high";
+}
+
+function computeYearSpanFromExpeditions(rows) {
+
+    let minTime = Infinity;
+    let maxTime = -Infinity;
+
+    rows.forEach(r => {
+        const raw = r["Date conf"];
+        if (!raw) return;
+
+        // ✅ parsing DD/MM/YYYY
+        const parts = String(raw).split("/");
+        if (parts.length !== 3) return;
+
+        const day   = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1; // JS months
+        const year  = parseInt(parts[2], 10);
+
+        const d = new Date(year, month, day);
+        const t = d.getTime();
+
+        if (!isNaN(t)) {
+            if (t < minTime) minTime = t;
+            if (t > maxTime) maxTime = t;
+        }
+    });
+
+    if (minTime === Infinity || maxTime === -Infinity) {
+        return 1;
+    }
+
+    const diffYears =
+        (maxTime - minTime) / (1000 * 60 * 60 * 24 * 365);
+
+    return Math.max(1, diffYears);
+}
+
+function computeTopRotations(limit = 5) {
+
+    const map = new Map();
+    // mapKey = articleCode
+    // value = { article, lib, rotation, tooltip }
+
+    dataset.forEach(e => {
+        e.articles.forEach(a => {
+            const key = a.article;
+
+            // éviter recalcul si déjà traité
+            if (map.has(key)) return;
+
+            const rot = computeRotationRate(a.article, a.lib);
+
+            if (rot.value > 0) {
+                map.set(key, {
+                    article: a.article,
+                    lib: a.lib,
+                    rotation: rot.value,
+                    tooltip: rot.tooltip
+                });
+            }
+        });
+    });
+
+    return Array.from(map.values())
+        .sort((a, b) => b.rotation - a.rotation)
+        .slice(0, limit);
 }
 
 /* ============================================================
@@ -81,6 +297,48 @@ document.getElementById("fileInput").addEventListener("change", async (e) => {
         alert("Impossible de lire ce fichier Excel.");
     }
 });
+
+document.getElementById("expeditionsInput")
+    .addEventListener("change", async e => {
+
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+        const buffer = await file.arrayBuffer();
+        const wb = XLSX.read(buffer, { type: "array" });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+        // ✅ construction des flux
+        expeditionsN1 = buildFluxMap(rows);
+
+        // ✅ calcul automatique de la durée couverte
+        ROTATION_YEARS = computeYearSpanFromExpeditions(rows);
+
+        // ✅ affichage sécurisé dans l’UI
+        const info = document.getElementById("rotationInfo");
+        if (info) {
+            info.textContent =
+                `Rotation calculée sur ${ROTATION_YEARS.toFixed(1)} an(s)`;
+        }
+
+        console.log(
+            "Durée expéditions détectée :",
+            ROTATION_YEARS.toFixed(2),
+            "an(s)"
+        );
+
+        refresh();
+    }
+    catch (err) {
+        console.error("Erreur import expéditions :", err);
+        alert("Impossible de lire le fichier des expéditions.");
+    }
+});
+
+
 /* ============================================================
    BLOC 3/10 — NIV + Construction du Dataset
 ============================================================ */
@@ -143,7 +401,7 @@ function buildDataset(){
         if (isNaN(q)) q = 0;
 
         map[key].articles.push({
-            article: row["Article"] || "",
+            article: String(row["Article"] || "").trim(),
             lib:     row["Libellé"] || "",
             gest:    (row["Gest."] || "").trim(),
             qty:     q
@@ -298,38 +556,68 @@ function updateIndicators() {
 
     if (!dataset.length) return;
 
-    const totalPossible = dataset.length;
-    const totalFiltered = filtered.length;
-    const totalQty      = filtered.reduce((s,e)=>s+e.qty,0);
+    // === GLOBAL ===
+    const totalLocations        = dataset.length;
+    const totalOccupiedGlobal   = dataset.filter(e => e.qty > 0).length;
 
-    // ✅ NOUVELLE DÉTECTION DES FILTRES ACTIFS (checkboxes)
-    const filtersActive =
-    filterText.value ||
-    hasChecked("filterA") ||
-    hasChecked("filterT") ||
-    hasChecked("filterN") ||
-    hasChecked("filterPos") ||
-    hasChecked("filterStatus") ||
-    hasChecked("filterGest");
+    // === FILTRÉ ===
+    const filteredLocations     = filtered.length;
+    const filteredOccupied      = filtered.filter(e => e.qty > 0).length;
 
-    if (!filtersActive) {
+    // === TAUX ===
 
-        const occupied = dataset.filter(e => e.qty > 0).length;
-        const taux = ((occupied / totalPossible) * 100).toFixed(1);
+    // 1️⃣ Taux général (occupés / total)
+    const fillRateGlobal =
+        totalLocations > 0
+            ? ((filteredOccupied / totalLocations) * 100).toFixed(1)
+            : "0.0";
 
-        sideFillRate.textContent = taux + "%";
-        sideCount.textContent    = totalPossible;
-        sideQty.textContent      = dataset.reduce((s,e)=>s+e.qty,0);
+    // 2️⃣ Taux sur les occupés seulement
+    const fillRateOnOccupied =
+        totalOccupiedGlobal > 0
+            ? ((filteredOccupied / totalOccupiedGlobal) * 100).toFixed(1)
+            : "0.0";
 
-        drawStatusChart();
+    // === AFFICHAGE ===
+    sideFillRate.textContent = fillRateGlobal + "%";
+    sideFillRateOccupied.textContent = fillRateOnOccupied + "%";
+
+    sideCount.textContent = filteredLocations;
+    sideQty.textContent   = filtered.reduce((s,e)=>s+e.qty,0);
+
+    drawStatusChart();
+}
+
+renderTopRotations();
+
+function renderTopRotations() {
+
+    const ul = document.getElementById("topRotationList");
+    if (!ul) return;
+
+    ul.innerHTML = "";
+
+    const top = computeTopRotations(5);
+
+    if (top.length === 0) {
+        ul.innerHTML = "<li>Aucune rotation disponible</li>";
         return;
     }
 
-    sideFillRate.textContent = ((totalFiltered / totalPossible) * 100).toFixed(1) + "%";
-    sideCount.textContent    = totalFiltered;
-    sideQty.textContent      = totalQty;
+    top.forEach((item, i) => {
+        const li = document.createElement("li");
 
-    drawStatusChart();
+        li.innerHTML = `
+            <span class="ref">
+                ${i + 1}. ${item.article}
+            </span>
+            <span class="rot" title="${item.tooltip}">
+                ${item.rotation.toFixed(2)} /an
+            </span>
+        `;
+
+        ul.appendChild(li);
+    });
 }
 
 /* -----------------------------
@@ -426,6 +714,8 @@ function renderDashboardKPI() {
         <div class="kpi-card"><b>${kpi.totalGest}</b><br>Gestionnaires</div>
     `;
 }
+
+
 /* ============================================================
    BLOC 6/10 — Tableau + Pagination
 ============================================================ */
@@ -443,32 +733,57 @@ function renderTable() {
 
     slice.forEach(e => {
 
-        const articleHTML = `
-            <div class="article-list">
-                ${e.articles.map(a => `
-                    <div class="article-item">
-                        <strong>${a.article}</strong>
-                        <div>${a.lib}</div>
-                        <div>Gest : ${a.gest || "-"}</div>
-                        <div>Qté : ${a.qty}</div>
+       const articleHTML = `
+    <div class="article-list">
+        ${e.articles.map(a => {
+
+            const rot = computeRotationRate(a.article, a.lib);
+
+            return `
+                <div class="article-item">
+                    <div class="article-header">
+                        <strong class="article-code">
+                            ${a.article}
+                        </strong>
+
+                       <span
+    class="rotation-badge ${rotationClass(rot.value)}"
+    data-tooltip="${rot.tooltip}">
+    ${rot.value}
+</span>
+                       
                     </div>
-                `).join("")}
-            </div>
-        `;
+
+                    <div class="article-lib">
+                        ${a.lib}
+                    </div>
+
+                    <div class="article-meta">
+                        Gest : ${a.gest || "-"}
+                    </div>
+
+                    <div class="article-meta">
+                        Qté : ${a.qty}
+                    </div>
+                </div>
+            `;
+        }).join("")}
+    </div>
+`;
 
         const tr = document.createElement("tr");
         tr.setAttribute("data-id", e.id);
-
+       
         tr.innerHTML = `
-            <td>${e.id}</td>
-            <td>${e.A}</td>
-            <td>${e.T}</td>
-            <td>${e.N}</td>
-            <td>${e.POS}</td>
-            <td>${articleHTML}</td>
-            <td>${e.qty}</td>
-            <td><span class="badge ${e.status}">${e.status}</span></td>
-        `;
+    <td>${e.id}</td>
+    <td>${e.A}</td>
+    <td>${e.T}</td>
+    <td>${e.N}</td>
+    <td>${e.POS}</td>
+    <td>${articleHTML}</td>
+    <td>${e.qty}</td>
+    <td><span class="badge ${e.status}">${e.status}</span></td>
+`;
 
         tr.addEventListener("mouseenter", () => highlightInPlan(e));
         tr.addEventListener("mouseleave", clearPlanHighlight);
@@ -1125,6 +1440,8 @@ document.getElementById("btnDashboard").addEventListener("click", () => {
     setTimeout(() => {
         renderDashboardKPI();
         renderDashboardCharts();
+        renderTopRotations();
+        renderTopDormantList()
     }, 50);
 });
 
@@ -1150,7 +1467,7 @@ function refresh() {
     drawPlan();
     drawMiniMap();
     updateIndicators();
-    renderDashboardKPI();
+    renderDashboardKPI();   
 
     if (dashboardView.classList.contains("active")) {
         renderDashboardCharts();
@@ -1173,7 +1490,12 @@ document
             refresh();
         }
     });
-
+// ✅ Recherche texte : filtre à la saisie
+if (filterText) {
+    filterText.addEventListener("input", () => {
+        refresh();
+    });
+}
        // ouverture via le titre
     document.addEventListener("click", e => {
         const title = e.target.closest(".filter-title");
