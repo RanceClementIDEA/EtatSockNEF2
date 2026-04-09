@@ -2,8 +2,13 @@
    BLOC 1/10 — Variables globales + Utils
    VERSION NETTOYÉE & STABLE
 ============================================================ */
+// ✅ Compteur global de fallbacks
+
+window.REFERENCE_CHANGES = {};
+window.REFERENCE_CHANGES_LIST = [];
 
 const ALLEES = ["A","B","C","D","E","F","G","H","I","J","K","L","M","N"];
+
 
 const FAMILLES = {
     EL: "Électricité / Éclairage / Détection",
@@ -119,6 +124,22 @@ function normalizeLabel(value) {
         .trim();
 }
 
+function normalizeDesignationLoose(label) {
+    return String(label ?? "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        // ⛔ retirer dimensions, DN, Ø, chiffres isolés
+        .replace(/\b(dn|ø)?\s*\d+(\.\d+)?\b/g, "")
+        // ⛔ retirer PN / classes
+        .replace(/\bpn\s*\d+\b/g, "")
+        // ⛔ retirer suffixes fournisseurs fréquents
+        .replace(/\b(mat|mc|std|iso)\b/g, "")
+        // ⛔ caractères non significatifs
+        .replace(/[^a-z]/g, "")
+        .trim();
+}
+
 // ✅ Alias pour compatibilité avec applyFilters()
 function normalize(v) {
     return normalizeLabel(v);
@@ -165,24 +186,11 @@ function buildFluxMap(rows) {
 
 function computeRotationRate(articleCode, label) {
 
-    let sorties = expeditionsN1[articleCode];
-    let usedFallback = false;
-
-    // ✅ fallback par intitulé
-    if (sorties === undefined && label) {
-        const key = normalizeLabel(label);
-        if (expeditionsByLabel[key] !== undefined) {
-            sorties = expeditionsByLabel[key];
-            usedFallback = true;
-        }
-    }
-
-    sorties = sorties || 0;
-
+    // ✅ 1. Stock actuel (inchangé)
     const stock = dataset.reduce((sum, e) =>
         sum + e.articles
             .filter(a => a.article === articleCode)
-            .reduce((s,a) => s + a.qty, 0)
+            .reduce((s, a) => s + a.qty, 0)
     , 0);
 
     if (!stock) {
@@ -192,20 +200,50 @@ function computeRotationRate(articleCode, label) {
         };
     }
 
+    // ✅ 2. Clé métier stable
+    const looseKey = normalizeDesignationLoose(label);
+
+    // ✅ 3. Références historiques connues
+    const refsGroup = REFERENCE_CHANGES[looseKey];
+
+    // ✅ 4. Sorties consolidées
+    let sorties = 0;
+    let isConsolidated = false;
+
+    if (refsGroup && refsGroup.size > 1) {
+        // 🔁 rotation consolidée
+        refsGroup.forEach(ref => {
+            sorties += expeditionsN1[ref] || 0;
+        });
+        isConsolidated = true;
+    } else {
+        // 🔁 comportement historique
+        sorties = expeditionsN1[articleCode] || 0;
+    }
+
+    if (!sorties) {
+        return {
+            value: 0,
+            tooltip: "Aucune rotation détectée"
+        };
+    }
+
+    // ✅ 5. Calcul du taux (inchangé)
     const rotation = +((sorties / stock) / ROTATION_YEARS).toFixed(2);
 
-    // ✅ tooltip construit ICI
+    // ✅ 6. Tooltip explicite
     let tooltip =
         `Rotation moyenne : ${rotation} par an\n` +
-        `Calculée sur 4 ans`;
+        `Calculée sur ${ROTATION_YEARS.toFixed(1)} an(s)`;
 
-    if (usedFallback) {
-        tooltip += `\n⚠️ Correspondance par intitulé`;
+    if (isConsolidated) {
+        tooltip += `\n🔁 Rotation consolidée (${refsGroup.size} références historiques)`;
     }
 
     return {
-        value: rotation,
-        tooltip
+    value: rotation,
+    tooltip,
+    consolidated: isConsolidated
     };
 }
 
@@ -222,6 +260,37 @@ function computeTopDormantArticles(limit = 5, source = filtered) {
             if (map.has(key)) return; // éviter doublons
 
             const rot = computeRotationRate(a.article, a.lib);
+
+function computeTopDormantArticles(limit = 5, source = filtered) {
+
+    if (!source || !source.length) return [];
+
+    const map = new Map();
+
+    source.forEach(e => {
+        e.articles.forEach(a => {
+
+            if (map.has(a.article)) return;
+
+            const rot = computeRotationRate(a.article, a.lib);
+
+            if (!rot || rot.value <= 0) return;
+
+            map.set(a.article, {
+                article: a.article,
+                lib: a.lib,
+                rotation: rot.value,
+                tooltip: rot.tooltip,
+                consolidated: rot.consolidated
+            });
+        });
+    });
+
+    return Array.from(map.values())
+        .sort((a, b) => a.rotation - b.rotation)
+        .slice(0, limit);
+}
+
 
             // ❌ exclure rotation nulle ou inexistante
             if (!rot || rot.value <= 0) return;
@@ -548,6 +617,32 @@ document.getElementById("expeditionsInput")
         const sheet = wb.Sheets[wb.SheetNames[0]];
 
         const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+        rows.forEach(r => {
+    const ref = String(r["Article"] || "").trim();
+    const des = normalizeDesignationLoose(r["Désignation"]);
+
+    if (!ref || !des) return;
+
+    if (!REFERENCE_CHANGES[des]) {
+        REFERENCE_CHANGES[des] = new Set();
+    }
+
+    REFERENCE_CHANGES[des].add(ref);
+});
+
+REFERENCE_CHANGES_LIST = Object.entries(REFERENCE_CHANGES)
+    .filter(([_, refs]) => refs.size > 1)
+    .map(([designation, refs]) => ({
+        designation,
+        references: [...refs],
+        generations: refs.size
+    }));
+
+console.log(
+    "🔁 Changements de références détectés :",
+    REFERENCE_CHANGES_LIST.length
+);
 
         // ✅ construction des flux
         expeditionsN1 = buildFluxMap(rows);

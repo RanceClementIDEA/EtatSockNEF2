@@ -815,11 +815,6 @@ html, body {
     background: #eef2f6;
 }
 
-/* ---------- GRAPHIQUES ---------- */
-/* =========================================================
-   GRAPHIQUE STATUT – HAUTEUR ADAPTÉE (4 BARRES)
-   ========================================================= */
-
 /* =========================================================
    GRAPHIQUE STATUT – VERSION BI ÉQUILIBRÉE
    ========================================================= */
@@ -907,7 +902,12 @@ html, body {
 
 table {
     max-width: 100%;
-    overflow-x: hidden;
+}
+
+/* ✅ c’est le conteneur qui scrolle, pas la table */
+.table-wrapper {
+    overflow-x: auto;
+    overflow-y: visible;
 }
 
 /* Si une table est trop large, elle scrolle en vertical seulement */
@@ -916,32 +916,46 @@ table, thead, tbody, tr, td, th {
 }
 
 /* Texte long : pas de débordement */
-td, th {
+td > .cell-content,
+th > .cell-content {
     white-space: nowrap;
     text-overflow: ellipsis;
-    overflow: hidden;
+    overflow: visible;
+    display: block;
 }
 
-/* =========================================================
-   TABLES / CARTES – PROTECTION
-   ========================================================= */
-
-table {
-    max-width: 100%;
-    overflow-x: hidden;
+.rotation-consolidated::after {
+    content: "⇆";
+    margin-left: 4px;
+    color: #e67e22;
+    font-size: 0.85em;
+    cursor: help;
 }
 
-/* Si une table est trop large, elle scrolle en vertical seulement */
-table, thead, tbody, tr, td, th {
-    box-sizing: border-box;
+.rotation-consolidated {
+    font-weight: 600;
 }
 
-/* Texte long : pas de débordement */
-td, th {
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    overflow: hidden;
+.rot {
+    color: #000000;        /* ✅ texte noir lisible */
+    position: relative;
+    z-index: 1000;
 }
 
 
+.rotation-badge {
+    margin-left: 4px;
+    font-size: 0.75em;
+    color: #e67e22;
+    cursor: help;
+    position: relative;
+    z-index: 1001;
+}
 
+/* ✅ chiffre noir DANS le badge carré de rotation */
+.rot .bi-badge,
+.rot .rotation-low,
+.rot .rotation-medium,
+.rot .rotation-high {
+    color: #000000 !important;
+}
