@@ -765,16 +765,13 @@ const filterPos    = document.getElementById("filterPos");
 const filterStatus = document.getElementById("filterStatus");
 const filterGest   = document.getElementById("filterGest");
 
-/* -----------------------------
-   Application des filtres
------------------------------ */
 function applyFilters() {
-console.log("✅ APPLY FILTERS CALLED");
+    console.log("✅ APPLY FILTERS CALLED");
+
     if (!filterText) return;
 
     const txt = normalize(filterText.value || "");
 
-    // ✅ TOUS LES FILTRES SONT DÉCLARÉS AVANT
     const FA = getCheckedValues("filterA").map(v => v.toUpperCase());
     const FT = getCheckedValues("filterT").map(v => parseInt(v));
     const FN = getCheckedValues("filterN").map(v => v.toUpperCase());
@@ -783,35 +780,47 @@ console.log("✅ APPLY FILTERS CALLED");
     const FG = getCheckedValues("filterGest").map(v => v.toUpperCase());
     const FF = getCheckedValues("filterFamille");
 
-    filtered = dataset.filter(e => {
+    filtered = dataset
+        .map(e => {
 
-        if (FA.length && !FA.includes(e.A)) return false;
-        if (FT.length && !FT.includes(e.T)) return false;
-        if (FN.length && !FN.includes(e.N)) return false;
-        if (FP.length && !FP.includes(e.POS)) return false;
-        if (FS.length && !FS.includes(e.status)) return false;
+            // ✅ Filtrage niveau emplacement
+            if (FA.length && !FA.includes(e.A)) return null;
+            if (FT.length && !FT.includes(e.T)) return null;
+            if (FN.length && !FN.includes(e.N)) return null;
+            if (FP.length && !FP.includes(e.POS)) return null;
+            if (FS.length && !FS.includes(e.status)) return null;
 
-        if (FG.length && !e.articles.some(a =>
-            FG.includes((a.gest || "").toUpperCase())
-        )) return false;
+            // ✅ Filtrage NIVEAU ARTICLE (🔑 clé du fix)
+            const filteredArticles = e.articles.filter(a => {
 
-       if (FF.length && !e.articles.some(a =>
-       FF.includes(a.famille)
-       )) return false;
+                if (FG.length && !FG.includes((a.gest || "").toUpperCase()))
+                    return false;
 
-        // ✅ Recherche texte (inchangée)
-        if (txt !== "") {
-            const matchID   = normalize(e.id).includes(txt);
-            const matchArt  = e.articles.some(a => normalize(a.article).includes(txt));
-            const matchLib  = e.articles.some(a => normalize(a.lib).includes(txt));
-            const matchGest = e.articles.some(a => normalize(a.gest).includes(txt));
+                if (FF.length && !FF.includes(a.famille))
+                    return false;
 
-            if (!matchID && !matchArt && !matchLib && !matchGest)
-                return false;
-        }
+                if (txt !== "") {
+                    const matchArt  = normalize(a.article).includes(txt);
+                    const matchLib  = normalize(a.lib).includes(txt);
+                    const matchGest = normalize(a.gest).includes(txt);
 
-        return true;
-    });
+                    if (!matchArt && !matchLib && !matchGest)
+                        return false;
+                }
+
+                return true;
+            });
+
+            // ✅ Si aucun article valide → on supprime l’emplacement
+            if (filteredArticles.length === 0) return null;
+
+            // ✅ Emplacement reconstruit PROPREMENT
+            return {
+                ...e,
+                articles: filteredArticles
+            };
+        })
+        .filter(Boolean);
 
     currentPage = 0;
 }
