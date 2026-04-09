@@ -946,7 +946,7 @@ th > .cell-content {
 .rotation-badge {
     margin-left: 4px;
     font-size: 0.75em;
-    color: #e67e22;
+    color: #000000;
     cursor: help;
     position: relative;
     z-index: 1001;
