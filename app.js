@@ -209,11 +209,13 @@ function computeRotationRate(articleCode, label) {
     };
 }
 
-function computeTopDormantArticles(limit = 5) {
+function computeTopDormantArticles(limit = 5, source = filtered) {
+
+    if (!source || !source.length) return [];
 
     const map = new Map();
 
-    dataset.forEach(e => {
+    source.forEach(e => {
         e.articles.forEach(a => {
 
             const key = a.article;
@@ -221,9 +223,7 @@ function computeTopDormantArticles(limit = 5) {
 
             const rot = computeRotationRate(a.article, a.lib);
 
-            // ✅ EXCLURE :
-            // - pas de donnée
-            // - rotation 0 (pas de flux du tout)
+            // ❌ exclure rotation nulle ou inexistante
             if (!rot || rot.value <= 0) return;
 
             map.set(key, {
@@ -314,33 +314,31 @@ function computeYearSpanFromExpeditions(rows) {
     return Math.max(1, diffYears);
 }
 
-function computeTopRotations(limit = 5) {
+function computeTopRotations(limit = 5, source = filtered) {
 
-    const map = new Map();
-    // mapKey = articleCode
-    // value = { article, lib, rotation, tooltip }
+    if (!source || !source.length) return [];
 
-    dataset.forEach(e => {
+    const result = new Map();
+
+    source.forEach(e => {
         e.articles.forEach(a => {
-            const key = a.article;
 
-            // éviter recalcul si déjà traité
-            if (map.has(key)) return;
+            if (result.has(a.article)) return;
 
             const rot = computeRotationRate(a.article, a.lib);
 
-            if (rot.value > 0) {
-                map.set(key, {
-                    article: a.article,
-                    lib: a.lib,
-                    rotation: rot.value,
-                    tooltip: rot.tooltip
-                });
-            }
+            if (!rot || rot.value <= 0) return;
+
+            result.set(a.article, {
+                article: a.article,
+                rotation: rot.value,
+                tooltip: rot.tooltip
+            });
         });
     });
 
-    return Array.from(map.values())
+    return Array
+        .from(result.values())
         .sort((a, b) => b.rotation - a.rotation)
         .slice(0, limit);
 }
@@ -771,7 +769,7 @@ const filterGest   = document.getElementById("filterGest");
    Application des filtres
 ----------------------------- */
 function applyFilters() {
-
+console.log("✅ APPLY FILTERS CALLED");
     if (!filterText) return;
 
     const txt = normalize(filterText.value || "");
@@ -861,10 +859,7 @@ function updateIndicators() {
     drawStatusChart();
 }
 
-renderTopRotations();
-
 function renderTopRotations() {
-
     const ul = document.getElementById("topRotationList");
     if (!ul) return;
 
@@ -1739,6 +1734,8 @@ function refresh() {
 
     if (dashboardView.classList.contains("active")) {
         renderDashboardCharts();
+        renderTopRotations();
+        renderTopDormantList();
     }
 }
 
@@ -1770,6 +1767,7 @@ if (btnDashboard) {
         // force le rendu dashboard
         renderDashboardKPI();
         renderDashboardCharts();
+
     });
 }
 
