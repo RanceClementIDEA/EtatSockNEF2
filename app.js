@@ -353,7 +353,7 @@ function computeFamilleStats() {
 
     const stats = {};
 
-    dataset.forEach(e => {
+    filtered.forEach(e => {
         e.articles.forEach(a => {
 
             const fam = a.famille || "Non classée";
@@ -766,7 +766,6 @@ const filterStatus = document.getElementById("filterStatus");
 const filterGest   = document.getElementById("filterGest");
 
 function applyFilters() {
-    console.log("✅ APPLY FILTERS CALLED");
 
     if (!filterText) return;
 
@@ -780,6 +779,11 @@ function applyFilters() {
     const FG = getCheckedValues("filterGest").map(v => v.toUpperCase());
     const FF = getCheckedValues("filterFamille");
 
+const hasArticleFilter =
+    FG.length > 0 ||
+    FF.length > 0 ||
+    txt !== "";
+
     filtered = dataset
         .map(e => {
 
@@ -790,7 +794,7 @@ function applyFilters() {
             if (FP.length && !FP.includes(e.POS)) return null;
             if (FS.length && !FS.includes(e.status)) return null;
 
-            // ✅ Filtrage NIVEAU ARTICLE (🔑 clé du fix)
+            // ✅ Filtrage niveau article
             const filteredArticles = e.articles.filter(a => {
 
                 if (FG.length && !FG.includes((a.gest || "").toUpperCase()))
@@ -811,13 +815,35 @@ function applyFilters() {
                 return true;
             });
 
-            // ✅ Si aucun article valide → on supprime l’emplacement
-            if (filteredArticles.length === 0) return null;
+            // ✅ Cas 1 : filtre article actif → on SUPPRIME l’emplacement
+if (hasArticleFilter && filteredArticles.length === 0) {
+    return null;
+}
 
-            // ✅ Emplacement reconstruit PROPREMENT
+// ✅ Cas 2 : pas de filtre article → on garde l’emplacement vide
+if (!hasArticleFilter && filteredArticles.length === 0) {
+    return {
+        ...e,
+        articles: [],
+        qty: 0,
+        status: "vide"
+    };
+}
+
+            // ✅ Recalcul BI cohérent
+            const qty = filteredArticles.reduce((s, a) => s + a.qty, 0);
+
+            const status =
+                qty === 0 ? "vide" :
+                qty <= 5  ? "faible" :
+                qty <= 20 ? "moyen" :
+                            "plein";
+
             return {
                 ...e,
-                articles: filteredArticles
+                articles: filteredArticles,
+                qty,
+                status
             };
         })
         .filter(Boolean);
