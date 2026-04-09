@@ -1798,6 +1798,7 @@ if (btnPlan) {
 if (btnDashboard) {
     btnDashboard.addEventListener("click", () => {
         switchTab(dashboardView);
+        refresh();
 
         // force le rendu dashboard
         renderDashboardKPI();
