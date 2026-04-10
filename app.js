@@ -115,6 +115,17 @@ let expeditionsByLabel = {}; // { normalizedLabel: totalSorties }
 /* ------------------------------------------------------------
    Utils
 ------------------------------------------------------------ */
+function isStrictReferenceProduct(label) {
+    if (!label) return false;
+
+    return /[-_][A-Z0-9]{3,}/.test(label)   // codes projet / variantes
+        || label.includes("E_R_")
+        || label.includes("ROB-ZV")
+        || label.includes("SPECIAL")
+        || label.includes("ACCESSOIRE")
+        || label.includes("LOT ");
+}
+
 function normalizeLabel(value) {
     return String(value ?? "")
         .toLowerCase()
@@ -129,15 +140,35 @@ function normalizeDesignationLoose(label) {
         .toLowerCase()
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
-        // ⛔ retirer dimensions, DN, Ø, chiffres isolés
-        .replace(/\b(dn|ø)?\s*\d+(\.\d+)?\b/g, "")
-        // ⛔ retirer PN / classes
-        .replace(/\bpn\s*\d+\b/g, "")
-        // ⛔ retirer suffixes fournisseurs fréquents
-        .replace(/\b(mat|mc|std|iso)\b/g, "")
-        // ⛔ caractères non significatifs
-        .replace(/[^a-z]/g, "")
+
+        // ✅ harmonisation métier (tolérance contrôlée)
+        .replace(/\brobinet a papillon\b/g, "robpap")
+        .replace(/\bfiltre en y\b/g, "filtrey")
+        .replace(/\bclapet a\b/g, "clapet")
+        .replace(/\bvanne d'equilibrage\b/g, "vanneeq")
+
+        // ✅ matière
+        .replace(/\bfonte\b/g, "fonte")
+        .replace(/\bacier\b/g, "acier")
+        .replace(/\binox\b/g, "inox")
+
+        // ✅ retirer mots techniques MAIS PAS les valeurs
+        .replace(/\b(dn|diametre|diam|pn)\b/g, "")
+
+        // ✅ nettoyage final
+        .replace(/[^a-z0-9]/g, "")
         .trim();
+}
+
+function getProductMatchKey(articleCode, label) {
+
+    // 🔒 Produits projet / configurés → clé stricte
+    if (isStrictReferenceProduct(label)) {
+        return `REF_${articleCode}`;
+    }
+
+    // ✅ Produits standards → clé technique
+    return normalizeDesignationLoose(label);
 }
 
 // ✅ Alias pour compatibilité avec applyFilters()
@@ -201,10 +232,11 @@ function computeRotationRate(articleCode, label) {
     }
 
     // ✅ 2. Clé métier stable
-    const looseKey = normalizeDesignationLoose(label);
+    const key = getProductMatchKey(articleCode, label);
+
 
     // ✅ 3. Références historiques connues
-    const refsGroup = REFERENCE_CHANGES[looseKey];
+    const refsGroup = REFERENCE_CHANGES[key];
 
     // ✅ 4. Sorties consolidées
     let sorties = 0;
@@ -233,8 +265,9 @@ function computeRotationRate(articleCode, label) {
 
     // ✅ 6. Tooltip explicite
     let tooltip =
-        `Rotation moyenne : ${rotation} par an\n` +
-        `Calculée sur ${ROTATION_YEARS.toFixed(1)} an(s)`;
+    `Rotation moyenne : ${rotation} par an\n` +
+    `Basée sur ${sorties} ligne(s) de sortie\n` +
+    `Calculée sur ${ROTATION_YEARS.toFixed(1)} an(s)`;
 
     if (isConsolidated) {
         tooltip += `\n🔁 Rotation consolidée (${refsGroup.size} références historiques)`;
@@ -246,20 +279,6 @@ function computeRotationRate(articleCode, label) {
     consolidated: isConsolidated
     };
 }
-
-function computeTopDormantArticles(limit = 5, source = filtered) {
-
-    if (!source || !source.length) return [];
-
-    const map = new Map();
-
-    source.forEach(e => {
-        e.articles.forEach(a => {
-
-            const key = a.article;
-            if (map.has(key)) return; // éviter doublons
-
-            const rot = computeRotationRate(a.article, a.lib);
 
 function computeTopDormantArticles(limit = 5, source = filtered) {
 
@@ -286,25 +305,6 @@ function computeTopDormantArticles(limit = 5, source = filtered) {
         });
     });
 
-    return Array.from(map.values())
-        .sort((a, b) => a.rotation - b.rotation)
-        .slice(0, limit);
-}
-
-
-            // ❌ exclure rotation nulle ou inexistante
-            if (!rot || rot.value <= 0) return;
-
-            map.set(key, {
-                article: a.article,
-                lib: a.lib,
-                rotation: rot.value,
-                tooltip: rot.tooltip
-            });
-        });
-    });
-
-    // ✅ tri : les plus faibles rotations d'abord
     return Array.from(map.values())
         .sort((a, b) => a.rotation - b.rotation)
         .slice(0, limit);
@@ -356,21 +356,30 @@ function computeYearSpanFromExpeditions(rows) {
         const raw = r["Date conf"];
         if (!raw) return;
 
-        // ✅ parsing DD/MM/YYYY
-        const parts = String(raw).split("/");
-        if (parts.length !== 3) return;
+        let d = null;
 
-        const day   = parseInt(parts[0], 10);
-        const month = parseInt(parts[1], 10) - 1; // JS months
-        const year  = parseInt(parts[2], 10);
-
-        const d = new Date(year, month, day);
-        const t = d.getTime();
-
-        if (!isNaN(t)) {
-            if (t < minTime) minTime = t;
-            if (t > maxTime) maxTime = t;
+        // ✅ CAS 1 : date Excel numérique
+        if (typeof raw === "number") {
+            // Excel epoch = 1899-12-30
+            d = new Date((raw - 25569) * 86400 * 1000);
         }
+
+        // ✅ CAS 2 : date texte DD/MM/YYYY
+        else if (typeof raw === "string" && raw.includes("/")) {
+            const parts = raw.split("/");
+            if (parts.length === 3) {
+                const day   = parseInt(parts[0], 10);
+                const month = parseInt(parts[1], 10) - 1;
+                const year  = parseInt(parts[2], 10);
+                d = new Date(year, month, day);
+            }
+        }
+
+        if (!d || isNaN(d.getTime())) return;
+
+        const t = d.getTime();
+        if (t < minTime) minTime = t;
+        if (t > maxTime) maxTime = t;
     });
 
     if (minTime === Infinity || maxTime === -Infinity) {
@@ -422,6 +431,9 @@ function computeFamilleStats() {
 
     const stats = {};
 
+    /* ==============================
+       4.2 — COLLECTE & CLASSIFICATION
+       ============================== */
     filtered.forEach(e => {
         e.articles.forEach(a => {
 
@@ -430,70 +442,137 @@ function computeFamilleStats() {
             if (!stats[fam]) {
                 stats[fam] = {
                     famille: fam,
+
+                    articlesTotal: new Set(),
+
+                    // ✅ ce qui nous intéresse ici
+                    
+                   articlesAvecHistoriqueSet: new Set(),
+                   articlesSansHistoriqueSet: new Set(),
+
+                    // (le reste pour d’autres colonnes)
+                    articlesActifs: 0,
+                    articlesDormants: 0,
+
                     stockTotal: 0,
-                    articles: new Set(),
-                    rotations: [],
+                    stockActif: 0,
+                    rotationsActives: [],
                     rotationMax: 0,
                     topArticleLabel: ""
                 };
             }
 
-            // 🔹 stock
-            stats[fam].stockTotal += a.qty;
-            stats[fam].articles.add(a.article);
+            const f = stats[fam];
 
-            // 🔹 rotation article
+            // stock total (TOUS les articles)
+            f.stockTotal += a.qty;
+            f.articlesTotal.add(a.article);
+
+            // calcul rotation article
             const rotObj = computeRotationRate(a.article, a.lib);
-            const rot = rotObj.value || 0;
+            const rotation = rotObj?.value || 0;
 
-            stats[fam].rotations.push(rot);
+            // ✅ clé métier pour l'historique consolidé
+            const key = getProductMatchKey(a.article, a.lib);
+            const refsGroup = REFERENCE_CHANGES[key];
 
-            // 🔹 rotation max + article associé
-            if (rot > stats[fam].rotationMax) {
-                stats[fam].rotationMax = rot;
-                stats[fam].topArticleLabel =
-                    `${a.article} – ${a.lib}`;
+            // ✅ détecter un historique réel (même via ref changée)
+            let hasHistory = false;
+            if (refsGroup && refsGroup.size) {
+                for (const ref of refsGroup) {
+                    if (expeditionsN1[ref]) {
+                        hasHistory = true;
+                        break;
+                    }
+                }
+            }
+
+            // ✅ COMPTAGE — UNE SEULE FOIS PAR ARTICLE
+            if (hasHistory) {
+    f.articlesAvecHistoriqueSet.add(a.article);
+} else {
+    f.articlesSansHistoriqueSet.add(a.article);
+}
+
+            /* ==============================
+               CLASSIFICATION (TA VERSION)
+               ============================== */
+
+            if (rotation >= 0.25) {
+                // ✅ ACTIF
+                f.articlesActifs++;
+                f.stockActif += a.qty;
+                f.rotationsActives.push(rotation);
+
+                if (rotation > f.rotationMax) {
+                    f.rotationMax = rotation;
+                    f.topArticleLabel = `${a.article} – ${a.lib}`;
+                }
+
+            }
+            else if (rotation > 0 || hasHistory) {
+                // 🟡 DORMANT
+                f.articlesDormants++;
+
+            }
+            else {
+                // ❌ JAMAIS SORTI
+                f.articlesJamaisSortis++;
             }
         });
     });
 
-    // 🔹 calcul BI par famille
+    /* ==============================
+       4.3 — CALCULS FINAUX PAR FAMILLE
+       ============================== */
     return Object.values(stats).map(f => {
 
-        const articleCount = f.articles.size;
+        const totalArticles = f.articlesTotal.size;
+        const articlesAvecHistorique = f.articlesAvecHistoriqueSet.size;
+        const articlesSansHistorique = f.articlesSansHistoriqueSet.size;
+        const actifs = f.articlesActifs;
+        const dormants = f.articlesDormants;
+        const jamais = f.articlesJamaisSortis;
 
         const rotationAvg =
-            f.rotations.length
-                ? f.rotations.reduce((s, r) => s + r, 0) / f.rotations.length
+            f.rotationsActives.length
+                ? f.rotationsActives.reduce((s, r) => s + r, 0) / f.rotationsActives.length
                 : 0;
 
-        const dormantCount =
-            f.rotations.filter(r => r < 0.2).length;
-
         const dormantRate =
-            f.rotations.length
-                ? dormantCount / f.rotations.length
+            (actifs + dormants) > 0
+                ? dormants / (actifs + dormants)
                 : 0;
 
         const stockRotationRatio =
             rotationAvg > 0
-                ? f.stockTotal / rotationAvg
+                ? f.stockActif / rotationAvg
                 : Infinity;
 
         const biScore = computeBIScore({
             rotationAvg,
             dormantRate,
             stockRotationRatio,
-            articleCount
+            articleCount: totalArticles
         });
 
         return {
             famille: f.famille,
-            articlesDistincts: articleCount,
+
+            articlesDistincts: totalArticles,
+            articlesAvecHistorique,
+            articlesSansHistorique,
+
+            articlesActifs: actifs,
+            articlesDormants: dormants,
+
             stockTotal: f.stockTotal,
+            stockActif: f.stockActif,
+
             rotationAvg: rotationAvg.toFixed(2),
             rotationMax: f.rotationMax.toFixed(2),
             dormantRate: (dormantRate * 100).toFixed(0),
+
             stockRotationRatio: Math.round(stockRotationRatio),
             topArticleLabel: f.topArticleLabel,
             biScore
@@ -527,6 +606,12 @@ console.log("✅ renderFamilleAnalysis appelée");
 
 <td>${f.articlesDistincts}</td>
 
+<td
+  title="Articles pris en compte : ${f.articlesAvecHistorique} | Articles exclus : ${f.articlesDistincts - f.articlesAvecHistorique}"
+>
+  ${f.articlesAvecHistorique} / ${f.articlesDistincts}
+</td>
+  
 <td>${f.stockTotal}</td>
 
 <td>
@@ -569,7 +654,11 @@ console.log("✅ renderFamilleAnalysis appelée");
 
 <td>
   <strong class="bi-score ${scoreClass}"
-          title="Score BI global (santé de la famille)">
+          title="Score BI global.
+Basé sur :
+- Rotation moyenne des articles actifs
+- Taux de dormance (hors jamais sortis)
+- Ratio stock / rotation">
     ${f.biScore}
   </strong>
 </td>
@@ -619,16 +708,20 @@ document.getElementById("expeditionsInput")
         const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
         rows.forEach(r => {
+
     const ref = String(r["Article"] || "").trim();
-    const des = normalizeDesignationLoose(r["Désignation"]);
+    const key = getProductMatchKey(
+        ref,
+        r["Désignation"]
+    );
 
-    if (!ref || !des) return;
+    if (!ref || !key) return;
 
-    if (!REFERENCE_CHANGES[des]) {
-        REFERENCE_CHANGES[des] = new Set();
+    if (!REFERENCE_CHANGES[key]) {
+        REFERENCE_CHANGES[key] = new Set();
     }
 
-    REFERENCE_CHANGES[des].add(ref);
+    REFERENCE_CHANGES[key].add(ref);
 });
 
 REFERENCE_CHANGES_LIST = Object.entries(REFERENCE_CHANGES)
@@ -638,7 +731,12 @@ REFERENCE_CHANGES_LIST = Object.entries(REFERENCE_CHANGES)
         references: [...refs],
         generations: refs.size
     }));
-
+console.log(
+    "Plage dates expéditions :",
+    rows[0]["Date conf"],
+    "→",
+    rows[rows.length - 1]["Date conf"]
+);
 console.log(
     "🔁 Changements de références détectés :",
     REFERENCE_CHANGES_LIST.length
